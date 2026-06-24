@@ -1,0 +1,47 @@
+{
+  "name": "inventory-backend",
+  "version": "1.0.0",
+  "description": "Inventory Management System Backend for Pharmacy POS",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "production": "NODE_ENV=production node server.js",
+    "build": "echo 'Build completed successfully'",
+    "postinstall": "echo '✅ Dependencies installed successfully'",
+    "generate": "node src/code-generator/generator.js",
+    "migrate:atlas": "node scripts/migrateLocalToAtlas.js",
+    "health": "node health.js",
+    "seed": "node scripts/seeder.js",
+    "seed:products300": "node src/seedProducts300.js",
+    "db:check": "node scripts/checkDatabase.js"
+  },
+  "engines": {
+    "node": ">=18.x"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.1.5",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "inquirer": "^12.9.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.1.0",
+    "mongoose": "^7.8.7",
+    "morgan": "^1.10.0",
+    "multer": "^2.1.1",
+    "nodemailer": "^8.0.7",
+    "pdf-to-printer": "^5.8.0",
+    "pdfkit": "^0.18.0",
+    "pdfmake": "^0.3.8",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "nodemon": "^3.1.10"
+  }
+}
