@@ -19,6 +19,7 @@ module.exports = function setupRoutes(app) {
   const analyticsRoutes = require('./routes/AnalyticsRoutes');
   const branchProfileRoutes = require('./routes/branchProfileRoutes');
   const userRoutes = require('./routes/userRoutes');
+  const roleRoutes = require('./routes/roleRoutes');
 
   app.use(cors(corsOptions));
   app.use(express.json());
@@ -35,6 +36,7 @@ module.exports = function setupRoutes(app) {
   app.use('/uploads', express.static(uploadsDir));
   app.use('/api/analytics', analyticsRoutes);
   app.use('/api/users', userRoutes);
+  app.use('/api/roles', roleRoutes);
   app.use('/api/branchProfiles', branchProfileRoutes);
   app.use('/api/products', productsRoutes);
   app.use('/api/categorys', categoryRoutes);

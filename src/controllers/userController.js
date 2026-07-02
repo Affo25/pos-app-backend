@@ -1,15 +1,38 @@
 const User = require("../models/User");
+const Role = require("../models/Role");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const transporter = require("../config/emailService");
 const { normalizePhone, isValidPhone } = require("../utils/phoneValidation");
+const { mergePermissions } = require("../config/permissionCatalog");
 const { sendUserCredentialsEmail, buildEmailPreview } = require("../services/emailService");
 const {
   sendWelcomeWhatsApp,
   buildWhatsAppPreview,
   isWhatsAppConfigured,
 } = require("../services/whatsappService");
+
+function deriveAllowedPages(permissions = []) {
+  return mergePermissions(permissions)
+    .filter((item) => item.add || item.edit || item.delete || item.view)
+    .map((item) => item.component);
+}
+
+async function applyRoleToUserData(userData, roleId) {
+  if (!roleId) return;
+
+  const role = await Role.findById(roleId);
+  if (!role) {
+    const err = new Error("Role not found");
+    err.status = 404;
+    throw err;
+  }
+
+  userData.role_id = role._id;
+  userData.permissions = mergePermissions(role.permissions);
+  userData.allowed_pages = deriveAllowedPages(role.permissions);
+}
 
 async function assertCanManageUser(loggedInUser, targetUserId) {
   const target = await User.findById(targetUserId);
@@ -306,10 +329,12 @@ exports.getAllUsers = async (req, res) => {
 
     let users;
     if (loggedInUser.user_type === "superAdmin") {
-      users = await User.find().select("-password");
+      users = await User.find().select("-password").populate("role_id", "name key");
     }
     else if (loggedInUser.user_type === "admin") {
-      users = await User.find({ admin_id: loggedInUser._id }).select("-password");
+      users = await User.find({ admin_id: loggedInUser._id })
+        .select("-password")
+        .populate("role_id", "name key");
     }
     else {
       return res.status(403).json({ message: "Unauthorized access" });
@@ -340,6 +365,7 @@ exports.createUser = async (req, res) => {
       allowed_devices,
       phone,
       address,
+      role_id,
     } = req.body;
 
     if (!name || !email || !password) {
@@ -381,6 +407,10 @@ exports.createUser = async (req, res) => {
     };
 
     applyPhoneAddressFields(userData, { phone, address });
+
+    if (role_id) {
+      await applyRoleToUserData(userData, role_id);
+    }
     
     const creatingUser = req.user;
     if (creatingUser && creatingUser.user_type === "admin") {
@@ -395,6 +425,7 @@ exports.createUser = async (req, res) => {
       name: newUser.name,
       email: newUser.email,
       user_type: newUser.user_type,
+      role_id: newUser.role_id,
       allowed_pages: newUser.allowed_pages,
       status: newUser.status,
       permissions: newUser.permissions,
@@ -459,6 +490,7 @@ exports.updateUser = async (req, res) => {
       is_blocked,
       phone,
       address,
+      role_id,
     } = req.body;
 
     const updateData = {
@@ -478,6 +510,10 @@ exports.updateUser = async (req, res) => {
     };
 
     applyPhoneAddressFields(updateData, { phone, address });
+
+    if (role_id) {
+      await applyRoleToUserData(updateData, role_id);
+    }
 
     // Handle license key update with uniqueness check
     if (license_key) {
@@ -500,7 +536,9 @@ exports.updateUser = async (req, res) => {
 
     const updatedUser = await User.findByIdAndUpdate(id, updateData, {
       new: true,
-    }).select("-password");
+    })
+      .select("-password")
+      .populate("role_id", "name key");
 
     if (!updatedUser) {
       return res.status(404).json({ message: "User not found" });

@@ -5,8 +5,12 @@ function normalizePhone(value) {
   if (value == null || value === '') return '';
   let s = String(value).trim().replace(/[\s\-().]/g, '');
   if (!s) return '';
-  if (!s.startsWith('+')) {
-    s = s.startsWith('00') ? `+${s.slice(2)}` : `+${s}`;
+  if (s.startsWith('00')) {
+    s = `+${s.slice(2)}`;
+  } else if (s.startsWith('0')) {
+    s = `+92${s.slice(1)}`;
+  } else if (!s.startsWith('+')) {
+    s = `+${s}`;
   }
   return s;
 }

@@ -39,9 +39,15 @@ const connectDB = async () => {
         connectTimeoutMS: 10000,
         heartbeatFrequencyMS: 30000,
       })
-      .then((conn) => {
+      .then(async (conn) => {
         console.log('✅ MongoDB connected successfully');
         console.log(`📦 Database: ${conn.connection.name}`);
+        try {
+          const { runBootstrap } = require('../services/bootstrapService');
+          await runBootstrap();
+        } catch (bootstrapError) {
+          console.error('❌ Bootstrap error:', bootstrapError.message);
+        }
         return conn;
       })
       .catch((error) => {
