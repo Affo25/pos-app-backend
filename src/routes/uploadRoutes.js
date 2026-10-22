@@ -42,7 +42,9 @@ function runUpload(req, res, next) {
   });
 }
 
-// Public endpoint — no auth required
+// Public endpoints — no auth required
+// Videos / large files: use /presign (direct-to-R2) — Vercel rejects bodies > ~4.5MB
+router.post('/presign', uploadController.presignUpload);
 router.post('/', runUpload, uploadController.uploadMedia);
 
 module.exports = router;

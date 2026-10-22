@@ -1,7 +1,10 @@
 const path = require('path');
 const crypto = require('crypto');
 const { PutObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { getR2Client, getR2Config } = require('../config/cloudflareR2');
+
+const PRESIGN_EXPIRES_SECONDS = 60 * 15; // 15 minutes
 
 function sanitizeFilename(name) {
   const base = path.basename(name || 'file').replace(/[^\w.\-()+ ]+/g, '_');
@@ -16,8 +19,14 @@ function buildObjectKey(originalname, folder) {
   return `${prefix}/${stamp}-${id}-${safe}`;
 }
 
+function publicUrlForKey(key) {
+  const { publicUrl } = getR2Config();
+  return `${publicUrl}/${key}`;
+}
+
 /**
  * Upload a buffer to Cloudflare R2 and return the public URL.
+ * Note: on Vercel this is limited to ~4.5MB request body — use createPresignedUpload for videos.
  * @param {{ buffer: Buffer, originalname: string, mimetype?: string, folder?: string }} file
  */
 async function uploadBufferToR2(file) {
@@ -51,7 +60,46 @@ async function uploadBufferToR2(file) {
   };
 }
 
+/**
+ * Create a short-lived PUT URL so clients (Flutter) upload directly to R2.
+ * Avoids Vercel FUNCTION_PAYLOAD_TOO_LARGE for videos / large files.
+ */
+async function createPresignedUpload({ filename, contentType, folder }) {
+  const type = contentType || 'application/octet-stream';
+  if (!/^image\//.test(type) && !/^video\//.test(type)) {
+    const err = new Error('Only image and video content types are allowed');
+    err.code = 'INVALID_CONTENT_TYPE';
+    throw err;
+  }
+
+  const client = getR2Client();
+  const { bucket } = getR2Config();
+  const key = buildObjectKey(filename || 'file', folder || 'tetsuplaods');
+
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    ContentType: type,
+  });
+
+  const uploadUrl = await getSignedUrl(client, command, {
+    expiresIn: PRESIGN_EXPIRES_SECONDS,
+  });
+
+  return {
+    key,
+    uploadUrl,
+    url: publicUrlForKey(key),
+    bucket,
+    contentType: type,
+    expiresIn: PRESIGN_EXPIRES_SECONDS,
+    originalname: filename || null,
+  };
+}
+
 module.exports = {
   uploadBufferToR2,
+  createPresignedUpload,
   buildObjectKey,
+  publicUrlForKey,
 };
