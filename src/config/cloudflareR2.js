@@ -22,15 +22,19 @@ function getR2Config() {
   };
 }
 
-function isR2Configured() {
+function getMissingR2EnvKeys() {
   const cfg = getR2Config();
-  return Boolean(
-    cfg.accessKeyId &&
-      cfg.secretAccessKey &&
-      cfg.bucket &&
-      cfg.endpoint &&
-      cfg.publicUrl,
-  );
+  const missing = [];
+  if (!cfg.accessKeyId) missing.push('CLOUDFLARE_ACCESS_KEY');
+  if (!cfg.secretAccessKey) missing.push('CLOUDFLARE_SECRET_KEY');
+  if (!cfg.bucket) missing.push('CLOUDFLARE_BUCKET_NAME');
+  if (!cfg.endpoint) missing.push('CLOUDFLARE_ENDPOINT or CLOUDFLARE_ACCOUNT_ID');
+  if (!cfg.publicUrl) missing.push('PUBLIC_CLOUDFLARE_URL');
+  return missing;
+}
+
+function isR2Configured() {
+  return getMissingR2EnvKeys().length === 0;
 }
 
 let cachedClient = null;
@@ -63,4 +67,5 @@ module.exports = {
   getR2Config,
   getR2Client,
   isR2Configured,
+  getMissingR2EnvKeys,
 };

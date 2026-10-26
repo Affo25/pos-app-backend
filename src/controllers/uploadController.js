@@ -1,5 +1,14 @@
 const { uploadBufferToR2, createPresignedUpload, DEFAULT_FOLDER } = require('../services/r2UploadService');
-const { isR2Configured } = require('../config/cloudflareR2');
+const { isR2Configured, getMissingR2EnvKeys } = require('../config/cloudflareR2');
+
+function r2NotConfiguredResponse(res) {
+  return res.status(503).json({
+    error: 'Cloudflare R2 is not configured on the server',
+    code: 'R2_NOT_CONFIGURED',
+    missing: getMissingR2EnvKeys(),
+    hint: 'Add CLOUDFLARE_* and PUBLIC_CLOUDFLARE_URL in Vercel Project Settings → Environment Variables, then redeploy.',
+  });
+}
 
 /**
  * POST /api/uploads/presign
@@ -9,10 +18,7 @@ const { isR2Configured } = require('../config/cloudflareR2');
 exports.presignUpload = async (req, res) => {
   try {
     if (!isR2Configured()) {
-      return res.status(503).json({
-        error: 'Cloudflare R2 is not configured',
-        code: 'R2_NOT_CONFIGURED',
-      });
+      return r2NotConfiguredResponse(res);
     }
 
     const filename = (req.body?.filename || req.body?.originalname || '').toString();
@@ -51,10 +57,7 @@ exports.presignUpload = async (req, res) => {
 exports.uploadMedia = async (req, res) => {
   try {
     if (!isR2Configured()) {
-      return res.status(503).json({
-        error: 'Cloudflare R2 is not configured',
-        code: 'R2_NOT_CONFIGURED',
-      });
+      return r2NotConfiguredResponse(res);
     }
 
     const folder = (req.body?.folder || req.query?.folder || DEFAULT_FOLDER).toString();
