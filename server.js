@@ -46,6 +46,19 @@ try {
   console.warn('⚠️ Print API status check skipped:', e.message);
 }
 
+try {
+  const { isR2Configured } = require('./src/config/cloudflareR2');
+  if (isR2Configured()) {
+    console.log('✅ Cloudflare R2 uploads: POST /api/uploads (public, folder: testvideos)');
+  } else {
+    console.warn(
+      '⚠️ Cloudflare R2 not configured — set CLOUDFLARE_* and PUBLIC_CLOUDFLARE_URL in backend/.env',
+    );
+  }
+} catch (e) {
+  console.warn('⚠️ Cloudflare R2 status check skipped:', e.message);
+}
+
 const app = createApp();
 
 const rawPort = process.env.PORT || '5000';

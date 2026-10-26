@@ -14,6 +14,8 @@ const Signin = () => {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -30,136 +32,114 @@ const Signin = () => {
   return (
     <div className="main-wrapper">
       <div className="account-content">
-        <div className="login-wrapper bg-img">
-          <div className="login-content">
-            <form onSubmit={handleSubmit}>
-              <div className="login-userset">
-                <div className="login-logo logo-normal">
-                  <ImageWithBasePath src="assets/img/logo.png" alt="img" />
+        <div className="login-split">
+          <aside className="login-split__visual" aria-hidden="true">
+            <div className="login-split__visual-overlay" />
+            <div className="login-split__visual-content">
+              <ImageWithBasePath
+                src="assets/img/logo-white.png"
+                alt="POS"
+                className="login-split__brand"
+              />
+              <h1>Run your store with clarity</h1>
+              <p>
+                Sign in to manage sales, inventory, and customers from one
+                modern POS workspace.
+              </p>
+            </div>
+          </aside>
+
+          <section className="login-split__panel">
+            <div className="login-split__card">
+              <div className="login-split__card-header">
+                <div className="login-split__logo-mobile">
+                  <ImageWithBasePath src="assets/img/logo.png" alt="POS" />
                 </div>
-                <Link to={route.dashboard} className="login-logo logo-white">
-                  <ImageWithBasePath src="assets/img/logo-white.png" alt />
-                </Link>
-                <div className="login-userheading">
-                  <h3>Sign In</h3>
-                  <h4>
-                    Access the POS panel using your email and passcode.
-                  </h4>
+                <h2>Welcome back</h2>
+                <p>Access the POS panel with your email and password.</p>
+              </div>
+
+              {error ? (
+                <div className="login-split__alert" role="alert">
+                  {error}
                 </div>
-                {error ? (
-                  <div className="alert alert-danger py-2" role="alert">
-                    {error}
-                  </div>
-                ) : null}
-                <div className="form-login mb-3">
-                  <label className="form-label">Email Address</label>
-                  <div className="form-addons">
+              ) : null}
+
+              <form className="login-split__form" onSubmit={handleSubmit}>
+                <div className="login-split__field">
+                  <label htmlFor="login-email">Email address</label>
+                  <div className="login-split__input-wrap">
                     <input
+                      id="login-email"
                       type="email"
-                      className="form-control"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
-                      placeholder="admin@admin.com"
+                      placeholder="you@company.com"
                       required
                       autoComplete="email"
                     />
                     <ImageWithBasePath
                       src="assets/img/icons/mail.svg"
-                      alt="img"
+                      alt=""
+                      className="login-split__input-icon"
                     />
                   </div>
                 </div>
-                <div className="form-login mb-3">
-                  <label className="form-label">Password</label>
-                  <div className="pass-group">
+
+                <div className="login-split__field">
+                  <label htmlFor="login-password">Password</label>
+                  <div className="login-split__input-wrap">
                     <input
-                      type="password"
-                      className="pass-input form-control"
+                      id="login-password"
+                      type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
-                      placeholder="admin123"
+                      placeholder="Enter your password"
                       required
                       autoComplete="current-password"
                     />
-                    <span className="fas toggle-password fa-eye-slash" />
-                  </div>
-                  <small className="text-muted d-block mt-2">
-                    First run default: admin@admin.com / admin123
-                  </small>
-                </div>
-                <div className="form-login authentication-check">
-                  <div className="row">
-                    <div className="col-12 d-flex align-items-center justify-content-between">
-                      <div className="custom-control custom-checkbox">
-                        <label className="checkboxs ps-4 mb-0 pb-0 line-height-1">
-                          <input type="checkbox" className="form-control" />
-                          <span className="checkmarks" />
-                          Remember me
-                        </label>
-                      </div>
-                      <div className="text-end">
-                        <Link className="forgot-link" to={route.forgotPassword}>
-                          Forgot Password?
-                        </Link>
-                      </div>
-                    </div>
+                    <button
+                      type="button"
+                      className="login-split__eye"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      <span
+                        className={`fas ${showPassword ? "fa-eye" : "fa-eye-slash"}`}
+                      />
+                    </button>
                   </div>
                 </div>
-                <div className="form-login">
-                  <button
-                    type="submit"
-                    className="btn btn-login w-100"
-                    disabled={loading}
-                  >
-                    {loading ? "Signing In..." : "Sign In"}
-                  </button>
+
+                <div className="login-split__meta">
+                  <label className="login-split__remember">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(event) => setRememberMe(event.target.checked)}
+                    />
+                    <span>Remember me</span>
+                  </label>
+                  <Link className="login-split__forgot" to={route.forgotPassword}>
+                    Forgot password?
+                  </Link>
                 </div>
-                <div className="signinform">
-                  <h4>
-                    New on our platform?
-                    <Link to={route.register} className="hover-a">
-                      {" "}
-                      Create an account
-                    </Link>
-                  </h4>
-                </div>
-                <div className="form-setlogin or-text">
-                  <h4>OR</h4>
-                </div>
-                <div className="form-sociallink">
-                  <ul className="d-flex">
-                    <li>
-                      <Link to="#" className="facebook-logo">
-                        <ImageWithBasePath
-                          src="assets/img/icons/facebook-logo.svg"
-                          alt="Facebook"
-                        />
-                      </Link>
-                    </li>
-                    <li>
-                      <Link to="#">
-                        <ImageWithBasePath
-                          src="assets/img/icons/google.png"
-                          alt="Google"
-                        />
-                      </Link>
-                    </li>
-                    <li>
-                      <Link to="#" className="apple-logo">
-                        <ImageWithBasePath
-                          src="assets/img/icons/apple-logo.svg"
-                          alt="Apple"
-                        />
-                      </Link>
-                    </li>
-                  </ul>
-                  <div className="my-4 d-flex justify-content-center align-items-center copyright-text">
-                    <p>Copyright © 2023 DreamsPOS. All rights reserved</p>
-                  </div>
-                </div>
-              </div>
-            </form>
-          </div>
+
+                <button
+                  type="submit"
+                  className="login-split__submit"
+                  disabled={loading}
+                >
+                  {loading ? "Signing in..." : "Sign in"}
+                </button>
+              </form>
+
+              <p className="login-split__footer">
+                New on our platform?{" "}
+                <Link to={route.register}>Create an account</Link>
+              </p>
+            </div>
+          </section>
         </div>
       </div>
     </div>

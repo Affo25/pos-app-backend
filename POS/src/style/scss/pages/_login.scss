@@ -685,3 +685,305 @@
         }
     }
 }
+
+/* Split login: left full-bleed image, right centered card */
+.login-split {
+    display: flex;
+    min-height: 100vh;
+    width: 100%;
+    background: #f4f6f9;
+
+    &__visual {
+        position: relative;
+        flex: 1 1 52%;
+        min-height: 100vh;
+        background-image: url(../../../../public/assets/img/authentication/login-img.jpg);
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        overflow: hidden;
+
+        @include respond-below(custom991) {
+            display: none;
+        }
+    }
+
+    &__visual-overlay {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+            160deg,
+            rgba(20, 24, 33, 0.72) 0%,
+            rgba(20, 24, 33, 0.35) 45%,
+            rgba(255, 159, 67, 0.45) 100%
+        );
+    }
+
+    &__visual-content {
+        position: relative;
+        z-index: 1;
+        max-width: 460px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        padding: 48px 56px 64px;
+        color: #fff;
+
+        h1 {
+            margin: 28px 0 14px;
+            font-size: 42px;
+            line-height: 1.15;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            color: #fff;
+        }
+
+        p {
+            margin: 0;
+            font-size: 16px;
+            line-height: 1.65;
+            color: rgba(255, 255, 255, 0.86);
+            max-width: 380px;
+        }
+    }
+
+    &__brand {
+        width: auto;
+        max-width: 148px;
+        height: auto;
+    }
+
+    &__panel {
+        flex: 1 1 48%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 24px;
+        min-height: 100vh;
+    }
+
+    &__card {
+        width: 100%;
+        max-width: 440px;
+        background: #fff;
+        border-radius: 20px;
+        border: 1px solid rgba(15, 23, 42, 0.06);
+        box-shadow:
+            0 18px 50px rgba(15, 23, 42, 0.08),
+            0 2px 8px rgba(15, 23, 42, 0.04);
+        padding: 40px 36px 32px;
+        animation: login-card-in 0.45s ease both;
+
+        @include respond-below(custom575) {
+            padding: 28px 20px 24px;
+            border-radius: 16px;
+            box-shadow: none;
+            border: none;
+            background: transparent;
+            max-width: 100%;
+        }
+    }
+
+    &__card-header {
+        margin-bottom: 28px;
+
+        h2 {
+            margin: 0 0 8px;
+            font-size: 28px;
+            font-weight: 800;
+            color: #111827;
+            letter-spacing: -0.02em;
+        }
+
+        p {
+            margin: 0;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #6b7280;
+        }
+    }
+
+    &__logo-mobile {
+        display: none;
+        margin-bottom: 20px;
+
+        img {
+            max-width: 132px;
+            height: auto;
+        }
+
+        @include respond-below(custom991) {
+            display: block;
+        }
+    }
+
+    &__alert {
+        margin-bottom: 16px;
+        padding: 12px 14px;
+        border-radius: 10px;
+        background: rgba(239, 68, 68, 0.08);
+        border: 1px solid rgba(239, 68, 68, 0.18);
+        color: #b91c1c;
+        font-size: 13px;
+    }
+
+    &__form {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    &__field {
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+        }
+    }
+
+    &__input-wrap {
+        position: relative;
+
+        input {
+            width: 100%;
+            height: 48px;
+            border: 1px solid rgba(145, 158, 171, 0.35);
+            border-radius: 12px;
+            padding: 0 44px 0 16px;
+            font-size: 14px;
+            color: #111827;
+            background: #fff;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+            &::placeholder {
+                color: #9ca3af;
+            }
+
+            &:focus {
+                outline: none;
+                border-color: $primary;
+                box-shadow: 0 0 0 4px rgba(255, 159, 67, 0.15);
+            }
+        }
+    }
+
+    &__input-icon {
+        position: absolute;
+        top: 50%;
+        right: 16px;
+        width: 18px;
+        height: 18px;
+        transform: translateY(-50%);
+        pointer-events: none;
+        opacity: 0.55;
+    }
+
+    &__eye {
+        position: absolute;
+        top: 50%;
+        right: 12px;
+        transform: translateY(-50%);
+        border: 0;
+        background: transparent;
+        color: #9ca3af;
+        padding: 6px;
+        line-height: 1;
+        cursor: pointer;
+
+        &:hover {
+            color: #4b5563;
+        }
+    }
+
+    &__meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 2px;
+    }
+
+    &__remember {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0;
+        font-size: 13px;
+        color: #4b5563;
+        cursor: pointer;
+
+        input {
+            width: 16px;
+            height: 16px;
+            accent-color: $primary;
+        }
+    }
+
+    &__forgot {
+        font-size: 13px;
+        font-weight: 600;
+        color: $primary;
+        text-decoration: none;
+
+        &:hover {
+            text-decoration: underline;
+        }
+    }
+
+    &__submit {
+        margin-top: 8px;
+        width: 100%;
+        height: 48px;
+        border: 0;
+        border-radius: 12px;
+        background: $primary;
+        color: #fff;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+
+        &:hover:not(:disabled) {
+            background: $primary-hover;
+            box-shadow: 0 10px 24px rgba(255, 159, 67, 0.35);
+            transform: translateY(-1px);
+        }
+
+        &:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+    }
+
+    &__footer {
+        margin: 22px 0 0;
+        text-align: center;
+        font-size: 13px;
+        color: #6b7280;
+
+        a {
+            color: $primary;
+            font-weight: 700;
+            text-decoration: none;
+
+            &:hover {
+                text-decoration: underline;
+            }
+        }
+    }
+}
+
+@keyframes login-card-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
