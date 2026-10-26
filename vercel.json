@@ -4,10 +4,11 @@
   "installCommand": "npm install",
   "buildCommand": "echo \"Backend ready for Vercel\"",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/api" }
+    { "source": "/health", "destination": "/api/health" },
+    { "source": "/", "destination": "/api" }
   ],
   "functions": {
-    "api/index.js": {
+    "api/[[...path]].js": {
       "maxDuration": 60,
       "memory": 1024
     }
