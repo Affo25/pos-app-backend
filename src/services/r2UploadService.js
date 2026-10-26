@@ -27,7 +27,7 @@ function publicUrlForKey(key) {
 
 /**
  * Upload a buffer to Cloudflare R2 (folder: testvideos by default).
- * On Vercel, request bodies over ~4.5MB fail — use createPresignedUpload for large videos.
+ * On Vercel, request body max is ~4.5MB — use createPresignedUpload for large mp4s.
  */
 async function uploadBufferToR2(file) {
   const { buffer, originalname, mimetype, folder } = file;
@@ -62,7 +62,7 @@ async function uploadBufferToR2(file) {
 }
 
 /**
- * Presigned PUT URL so clients upload large videos directly to R2 (bypasses Vercel body limit).
+ * Presigned PUT URL so clients upload large videos directly to R2 (bypasses Vercel 4.5MB limit).
  */
 async function createPresignedUpload({ filename, contentType, folder }) {
   const type = contentType || 'application/octet-stream';
@@ -101,6 +101,5 @@ module.exports = {
   uploadBufferToR2,
   createPresignedUpload,
   buildObjectKey,
-  publicUrlForKey,
   DEFAULT_FOLDER,
 };

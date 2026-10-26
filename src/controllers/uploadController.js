@@ -4,7 +4,7 @@ const { isR2Configured } = require('../config/cloudflareR2');
 /**
  * POST /api/uploads/presign
  * JSON: { filename, contentType }
- * Use for mp4 / large videos on Vercel (direct-to-R2).
+ * Use for large mp4 videos on Vercel (direct-to-R2).
  */
 exports.presignUpload = async (req, res) => {
   try {
@@ -20,9 +20,7 @@ exports.presignUpload = async (req, res) => {
     const folder = (req.body?.folder || DEFAULT_FOLDER).toString();
 
     if (!filename || !contentType) {
-      return res.status(400).json({
-        error: 'filename and contentType are required',
-      });
+      return res.status(400).json({ error: 'filename and contentType are required' });
     }
 
     const data = await createPresignedUpload({ filename, contentType, folder });
@@ -48,7 +46,7 @@ exports.presignUpload = async (req, res) => {
 /**
  * POST /api/uploads
  * multipart field: file (or files)
- * Saves into R2 folder testvideos and returns public url.
+ * Saves under testvideos/ and returns public url.
  */
 exports.uploadMedia = async (req, res) => {
   try {

@@ -41,7 +41,7 @@ function getR2Client() {
   const cfg = getR2Config();
   if (!isR2Configured()) {
     const err = new Error(
-      'Cloudflare R2 is not configured. Set CLOUDFLARE_ACCESS_KEY, CLOUDFLARE_SECRET_KEY, CLOUDFLARE_BUCKET_NAME, CLOUDFLARE_ACCOUNT_ID (or CLOUDFLARE_ENDPOINT), and PUBLIC_CLOUDFLARE_URL.',
+      'Cloudflare R2 is not configured. Set CLOUDFLARE_* and PUBLIC_CLOUDFLARE_URL in env.',
     );
     err.code = 'R2_NOT_CONFIGURED';
     throw err;

@@ -51,9 +51,7 @@ try {
   if (isR2Configured()) {
     console.log('✅ Cloudflare R2 uploads: POST /api/uploads (public, folder: testvideos)');
   } else {
-    console.warn(
-      '⚠️ Cloudflare R2 not configured — set CLOUDFLARE_* and PUBLIC_CLOUDFLARE_URL in backend/.env',
-    );
+    console.warn('⚠️ Cloudflare R2 not configured — set CLOUDFLARE_* in .env');
   }
 } catch (e) {
   console.warn('⚠️ Cloudflare R2 status check skipped:', e.message);

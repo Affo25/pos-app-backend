@@ -4,7 +4,7 @@ const uploadController = require('../controllers/uploadController');
 
 const router = express.Router();
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB (local/Railway); Vercel body limit is ~4.5MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB (local/Railway; Vercel body still ~4.5MB)
 
 const upload = multer({
   storage: multer.memoryStorage(),
