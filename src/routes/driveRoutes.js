@@ -29,6 +29,7 @@ function runUpload(req, res, next) {
 }
 
 // Public — no auth
+router.get('/status', driveController.getStatus);
 router.post('/upload', runUpload, driveController.uploadFile);
 router.get('/files', driveController.listFiles);
 

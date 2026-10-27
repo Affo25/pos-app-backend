@@ -17,7 +17,8 @@
     "health": "node health.js",
     "seed": "node scripts/seeder.js",
     "seed:products300": "node src/seedProducts300.js",
-    "db:check": "node scripts/checkDatabase.js"
+    "db:check": "node scripts/checkDatabase.js",
+    "drive:oauth": "node scripts/googleDriveOAuth.js"
   },
   "engines": {
     "node": ">=18.x"

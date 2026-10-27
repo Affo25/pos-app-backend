@@ -2,5 +2,10 @@
 /credentials
 *.pem
 google-drive.json
+.env
+.env.*
+!.env.example
 src/config/videorecorder-*.json
 **/videorecorder-*.json
+src/config/client_secret_*.json
+**/client_secret_*.json
