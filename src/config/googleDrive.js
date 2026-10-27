@@ -116,11 +116,45 @@ function loadOAuthClientFromFile() {
   return null;
 }
 
+function cleanEnvSecret(value) {
+  let v = String(value || '').trim();
+  // Strip wrapping quotes from Vercel / .env pastes
+  if (
+    (v.startsWith('"') && v.endsWith('"')) ||
+    (v.startsWith("'") && v.endsWith("'"))
+  ) {
+    v = v.slice(1, -1).trim();
+  }
+  return v;
+}
+
+function decodePossibleBase64(value) {
+  const v = cleanEnvSecret(value);
+  if (!v) return '';
+  // Refresh tokens normally start with "1/" — if not, try base64
+  if (v.startsWith('1/') || v.startsWith('1//')) return v;
+  try {
+    const decoded = Buffer.from(v, 'base64').toString('utf8').trim();
+    if (decoded.startsWith('1/')) return decoded;
+  } catch {
+    // ignore
+  }
+  return v;
+}
+
 function getOAuthConfig() {
   const fromFile = loadOAuthClientFromFile();
-  const clientId = (process.env.GOOGLE_OAUTH_CLIENT_ID || fromFile?.clientId || '').trim();
-  const clientSecret = (process.env.GOOGLE_OAUTH_CLIENT_SECRET || fromFile?.clientSecret || '').trim();
-  const refreshToken = (process.env.GOOGLE_OAUTH_REFRESH_TOKEN || '').trim();
+  const clientId = cleanEnvSecret(
+    process.env.GOOGLE_OAUTH_CLIENT_ID || fromFile?.clientId || '',
+  );
+  const clientSecret = cleanEnvSecret(
+    process.env.GOOGLE_OAUTH_CLIENT_SECRET || fromFile?.clientSecret || '',
+  );
+  const refreshToken = decodePossibleBase64(
+    process.env.GOOGLE_OAUTH_REFRESH_TOKEN ||
+      process.env.GOOGLE_OAUTH_REFRESH_TOKEN_BASE64 ||
+      '',
+  );
   if (!clientId || !clientSecret || !refreshToken) return null;
   return { clientId, clientSecret, refreshToken };
 }

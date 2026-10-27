@@ -53,6 +53,19 @@ function extractGoogleError(err) {
  * GET /api/drive/status — quick config check (no secrets)
  */
 exports.getStatus = async (req, res) => {
+  const { getOAuthConfig } = require('../config/googleDrive');
+  let refreshTokenLength = 0;
+  let refreshTokenPrefix = null;
+  try {
+    const oauth = getOAuthConfig();
+    if (oauth?.refreshToken) {
+      refreshTokenLength = oauth.refreshToken.length;
+      refreshTokenPrefix = oauth.refreshToken.slice(0, 4);
+    }
+  } catch {
+    // ignore
+  }
+
   return res.status(200).json({
     configured: isGoogleDriveConfigured(),
     authMode: getAuthMode(),
@@ -60,11 +73,16 @@ exports.getStatus = async (req, res) => {
     folderName: getConfiguredFolderName(),
     folderIdSet: Boolean(getConfiguredFolderId()),
     sharedDriveIdSet: Boolean(getSharedDriveId()),
+    refreshTokenLength,
+    refreshTokenPrefix,
+    expectedRefreshTokenLength: 103,
     missing: getMissingGoogleDriveEnv(),
     note:
       getAuthMode() === 'service_account' && !getSharedDriveId()
         ? 'Service account + personal My Drive will fail with storage quota. Switch to OAuth or a Shared Drive.'
-        : undefined,
+        : refreshTokenLength > 0 && refreshTokenLength < 80
+          ? 'Refresh token looks truncated on the server. Re-paste GOOGLE_OAUTH_REFRESH_TOKEN on Vercel wrapped in double quotes.'
+          : undefined,
   });
 };
 
