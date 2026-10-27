@@ -103,10 +103,15 @@ exports.uploadFile = async (req, res) => {
       detail: info.detail,
       reason: info.reason,
       code: info.code,
-      hint:
-        info.code === 'STORAGE_QUOTA' || /storage quota/i.test(info.detail || '')
-          ? 'Use OAuth for personal Drive: set GOOGLE_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN (npm run drive:oauth), add them on Vercel, redeploy. Or use a Workspace Shared Drive + GOOGLE_SHARED_DRIVE_ID.'
-          : 'Check Drive auth env vars and that videoRecorder folder is accessible.',
+      hint: (() => {
+        if (info.code === 'STORAGE_QUOTA' || /storage quota/i.test(info.detail || '')) {
+          return 'Use OAuth for personal Drive: set GOOGLE_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN (npm run drive:oauth), add them on Vercel, redeploy.';
+        }
+        if (/invalid_grant/i.test(info.detail || '')) {
+          return 'GOOGLE_OAUTH_REFRESH_TOKEN is missing/expired/revoked or does not match Client ID/Secret. Run npm run drive:oauth locally, copy the new refresh token to Vercel, redeploy.';
+        }
+        return 'Check Drive auth env vars and that videoRecorder folder is accessible.';
+      })(),
     });
   }
 };
