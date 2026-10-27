@@ -46,6 +46,19 @@ try {
   console.warn('⚠️ Print API status check skipped:', e.message);
 }
 
+try {
+  const { isGoogleDriveConfigured } = require('./src/config/googleDrive');
+  if (isGoogleDriveConfigured()) {
+    console.log('✅ Google Drive: POST /api/drive/upload , GET /api/drive/files (folder: videoRecorder)');
+  } else {
+    console.warn(
+      '⚠️ Google Drive not configured — set GOOGLE_SERVICE_ACCOUNT_JSON or credentials/google-drive.json',
+    );
+  }
+} catch (e) {
+  console.warn('⚠️ Google Drive status check skipped:', e.message);
+}
+
 const app = createApp();
 
 const rawPort = process.env.PORT || '5000';

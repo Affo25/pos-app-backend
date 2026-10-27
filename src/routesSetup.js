@@ -59,4 +59,7 @@ module.exports = function setupRoutes(app) {
 
   const paymentRoutes = require('./routes/paymentRoutes');
   app.use('/api/payments', paymentRoutes);
+
+  const driveRoutes = require('./routes/driveRoutes');
+  app.use('/api/drive', driveRoutes);
 };
