@@ -62,4 +62,7 @@ module.exports = function setupRoutes(app) {
 
   const driveRoutes = require('./routes/driveRoutes');
   app.use('/api/drive', driveRoutes);
+
+  const uploadRoutes = require('./routes/uploadRoutes');
+  app.use('/api/uploads', uploadRoutes);
 };
