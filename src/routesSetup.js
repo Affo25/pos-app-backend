@@ -3,10 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const corsOptions = require('./config/corsOptions');
 
-/**
- * Attaches CORS, body parsers, uploads, and all /api routes to `app`.
- * Loaded after server.js calls listen() so Railway can pass HTTP healthchecks while models load.
- */
+
 module.exports = function setupRoutes(app) {
   const purchaseOrderRoutes = require('./routes/purchaseOrderRoutes');
   const supplierRoutes = require('./routes/supplierRoutes');

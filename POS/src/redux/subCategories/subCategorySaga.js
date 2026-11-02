@@ -2,41 +2,51 @@ import { all, takeLatest, put, call } from "redux-saga/effects";
 import { toast } from "react-toastify";
 import * as subCategoryService from "./subCategoryService";
 import * as actions from "./subCategorySlice";
-
-function* handleApiCall(apiFn, ...args) {
-  try {
-    yield put(actions.operationStart());
-    const result = yield call(apiFn, ...args);
-    yield put(actions.operationSuccess());
-    return result;
-  } catch (error) {
-    yield put(actions.operationFailure(error.message));
-    toast.error(error.message);
-    throw error;
-  }
-}
+import { handleApiCall } from "../utils/sagaHelpers";
 
 function* fetchAllSubCategories() {
-  const subCategories = yield handleApiCall(
+  const { ok, result } = yield call(
+    handleApiCall,
+    actions,
     subCategoryService.fetchAllSubCategories,
   );
-  yield put(actions.fetchSubCategoriesSuccess(subCategories));
+  if (!ok) return;
+  yield put(actions.fetchSubCategoriesSuccess(result));
 }
 
 function* createSubCategory({ payload }) {
-  yield handleApiCall(subCategoryService.createSubCategory, payload);
+  const { ok } = yield call(
+    handleApiCall,
+    actions,
+    subCategoryService.createSubCategory,
+    payload,
+  );
+  if (!ok) return;
   toast.success("Sub category created successfully");
   yield call(fetchAllSubCategories);
 }
 
 function* updateSubCategory({ payload: { id, data } }) {
-  yield handleApiCall(subCategoryService.updateSubCategory, id, data);
+  const { ok } = yield call(
+    handleApiCall,
+    actions,
+    subCategoryService.updateSubCategory,
+    id,
+    data,
+  );
+  if (!ok) return;
   yield call(fetchAllSubCategories);
   toast.success("Sub category updated successfully");
 }
 
 function* deleteSubCategory({ payload: id }) {
-  yield handleApiCall(subCategoryService.deleteSubCategory, id);
+  const { ok } = yield call(
+    handleApiCall,
+    actions,
+    subCategoryService.deleteSubCategory,
+    id,
+  );
+  if (!ok) return;
   yield call(fetchAllSubCategories);
   toast.success("Sub category deleted successfully");
 }

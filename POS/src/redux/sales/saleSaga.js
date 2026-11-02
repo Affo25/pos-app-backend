@@ -2,39 +2,41 @@ import { all, takeLatest, put, call } from "redux-saga/effects";
 import { toast } from "react-toastify";
 import * as saleService from "./saleService";
 import * as actions from "./saleSlice";
-
-function* handleApiCall(apiFn, ...args) {
-  try {
-    yield put(actions.operationStart());
-    const result = yield call(apiFn, ...args);
-    yield put(actions.operationSuccess());
-    return result;
-  } catch (error) {
-    yield put(actions.operationFailure(error.message));
-    toast.error(error.message);
-    throw error;
-  }
-}
+import { handleApiCall } from "../utils/sagaHelpers";
 
 function* fetchAllSales() {
-  const sales = yield handleApiCall(saleService.fetchAllSales);
-  yield put(actions.fetchSalesSuccess(sales));
+  const { ok, result } = yield call(
+    handleApiCall,
+    actions,
+    saleService.fetchAllSales,
+  );
+  if (!ok) return;
+  yield put(actions.fetchSalesSuccess(result));
 }
 
 function* createSale({ payload }) {
-  yield handleApiCall(saleService.createSale, payload);
+  const { ok } = yield call(handleApiCall, actions, saleService.createSale, payload);
+  if (!ok) return;
   toast.success("Sale created successfully");
   yield call(fetchAllSales);
 }
 
 function* updateSale({ payload: { id, data } }) {
-  yield handleApiCall(saleService.updateSale, id, data);
+  const { ok } = yield call(
+    handleApiCall,
+    actions,
+    saleService.updateSale,
+    id,
+    data,
+  );
+  if (!ok) return;
   yield call(fetchAllSales);
   toast.success("Sale updated successfully");
 }
 
 function* deleteSale({ payload: id }) {
-  yield handleApiCall(saleService.deleteSale, id);
+  const { ok } = yield call(handleApiCall, actions, saleService.deleteSale, id);
+  if (!ok) return;
   yield call(fetchAllSales);
   toast.success("Sale deleted successfully");
 }

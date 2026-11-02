@@ -1,8 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
+import PropTypes from "prop-types";
+import { Modal, Button } from "react-bootstrap";
 import { useDispatch, useSelector } from "react-redux";
 import Select from "react-select";
+import { toast } from "react-toastify";
 import { createUserAction } from "../../../redux/users/userSlice";
 import { fetchAllRolesAction } from "../../../redux/roles/roleSlice";
+import EntityImageUpload from "../../components/EntityImageUpload";
 import {
   getPhoneErrorMessage,
   isValidPhoneInput,
@@ -18,40 +22,35 @@ const initialForm = {
   role_id: "",
   status: "active",
   address: "",
+  image: "",
 };
 
-const closeModal = (modalId) => {
-  const modalElement = document.getElementById(modalId);
-  if (!modalElement) return;
-
-  if (window.bootstrap?.Modal) {
-    const instance = window.bootstrap.Modal.getInstance(modalElement);
-    instance?.hide();
-    return;
-  }
-
-  modalElement.classList.remove("show");
-  modalElement.style.display = "none";
-  document.body.classList.remove("modal-open");
-  document.querySelector(".modal-backdrop")?.remove();
-};
-
-const AddUsers = () => {
+const AddUsers = ({ show, onClose }) => {
   const dispatch = useDispatch();
   const { roles, loading: rolesLoading } = useSelector((state) => state.roles);
   const { loading } = useSelector((state) => state.users);
+  const authUser = useSelector((state) => state.auth?.user);
+  const isSuperAdmin = authUser?.user_type === "superAdmin";
 
   const [form, setForm] = useState(initialForm);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setConfirmPassword] = useState(false);
 
   useEffect(() => {
-    dispatch(fetchAllRolesAction());
-  }, [dispatch]);
+    if (show) dispatch(fetchAllRolesAction());
+  }, [dispatch, show]);
+
+  useEffect(() => {
+    if (!show) {
+      setForm(initialForm);
+      setShowPassword(false);
+      setConfirmPassword(false);
+    }
+  }, [show]);
 
   const roleOptions = useMemo(
     () =>
-      roles
+      (roles || [])
         .filter((role) => role.key !== "super_admin")
         .map((role) => ({
           value: role._id,
@@ -69,31 +68,30 @@ const AddUsers = () => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const resetForm = () => {
-    setForm(initialForm);
-    setShowPassword(false);
-    setConfirmPassword(false);
+  const handleClose = () => {
+    onClose?.();
   };
 
   const handleSubmit = (event) => {
     event.preventDefault();
 
     if (!form.name.trim() || !form.email.trim() || !form.password.trim()) {
+      toast.error("Name, email and password are required");
       return;
     }
 
     if (form.password !== form.confirmPassword) {
-      window.alert("Password and confirm password do not match.");
+      toast.error("Password and confirm password do not match");
       return;
     }
 
     if (!form.role_id) {
-      window.alert("Please select a role.");
+      toast.error("Please select a role");
       return;
     }
 
     if (!isValidPhoneInput(form.phone)) {
-      window.alert(getPhoneErrorMessage());
+      toast.error(getPhoneErrorMessage());
       return;
     }
 
@@ -104,186 +102,170 @@ const AddUsers = () => {
         password: form.password,
         phone: normalizePhoneInput(form.phone),
         address: form.address.trim(),
-        status: form.status,
+        image: form.image || "",
+        status: isSuperAdmin ? form.status : "active",
         role_id: form.role_id,
         user_type: "user",
       }),
     );
 
-    resetForm();
-    closeModal("add-units");
+    handleClose();
   };
 
   return (
-    <div className="modal fade" id="add-units">
-      <div className="modal-dialog modal-dialog-centered custom-modal-two">
-        <div className="modal-content">
-          <div className="page-wrapper-new p-0">
-            <div className="content">
-              <div className="modal-header border-0 custom-modal-header">
-                <div className="page-title">
-                  <h4>Add User</h4>
+    <Modal show={Boolean(show)} onHide={handleClose} centered size="lg" dialogClassName="modern-form-modal">
+      <Modal.Header closeButton>
+        <Modal.Title>Add User</Modal.Title>
+      </Modal.Header>
+      <form onSubmit={handleSubmit}>
+        <Modal.Body>
+          <div className="row">
+            <div className="col-md-5 mb-3">
+              <EntityImageUpload
+                label="Profile photo"
+                folder="users"
+                value={form.image}
+                onChange={(url) => handleChange("image", url || "")}
+              />
+            </div>
+            <div className="col-md-7">
+              <div className="row">
+                <div className="col-md-12 mb-3">
+                  <label className="modern-form-label">
+                    User name <span className="text-danger">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={form.name}
+                    onChange={(e) => handleChange("name", e.target.value)}
+                    required
+                  />
                 </div>
-                <button
-                  type="button"
-                  className="close"
-                  data-bs-dismiss="modal"
-                  aria-label="Close"
-                  onClick={resetForm}
-                >
-                  <span aria-hidden="true">×</span>
-                </button>
-              </div>
-              <div className="modal-body custom-modal-body">
-                <form onSubmit={handleSubmit}>
-                  <div className="row">
-                    <div className="col-lg-6">
-                      <div className="input-blocks">
-                        <label>User Name</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          value={form.name}
-                          onChange={(event) => handleChange("name", event.target.value)}
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="col-lg-6">
-                      <div className="input-blocks">
-                        <label>Phone</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          value={form.phone}
-                          onChange={(event) => handleChange("phone", event.target.value)}
-                          placeholder="+923247890891 or 03247890891"
-                        />
-                      </div>
-                    </div>
-                    <div className="col-lg-6">
-                      <div className="input-blocks">
-                        <label>Email</label>
-                        <input
-                          type="email"
-                          className="form-control"
-                          value={form.email}
-                          onChange={(event) => handleChange("email", event.target.value)}
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="col-lg-6">
-                      <div className="input-blocks">
-                        <label>Role</label>
-                        <Select
-                          className="select"
-                          options={roleOptions}
-                          value={
-                            roleOptions.find((option) => option.value === form.role_id) ||
-                            null
-                          }
-                          onChange={(option) => handleChange("role_id", option?.value || "")}
-                          placeholder={rolesLoading ? "Loading roles..." : "Choose Role"}
-                          isDisabled={rolesLoading || !roleOptions.length}
-                        />
-                        {!rolesLoading && !roleOptions.length ? (
-                          <small className="text-muted">
-                            No assignable roles yet. Create one in Roles &amp; Permissions first.
-                          </small>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="col-lg-6">
-                      <div className="input-blocks">
-                        <label>Status</label>
-                        <Select
-                          className="select"
-                          options={statusOptions}
-                          value={
-                            statusOptions.find((option) => option.value === form.status) ||
-                            statusOptions[0]
-                          }
-                          onChange={(option) =>
-                            handleChange("status", option?.value || "active")
-                          }
-                          placeholder="Choose Status"
-                        />
-                      </div>
-                    </div>
-                    <div className="col-lg-6">
-                      <div className="input-blocks">
-                        <label>Password</label>
-                        <div className="pass-group">
-                          <input
-                            type={showPassword ? "text" : "password"}
-                            className="pass-input form-control"
-                            value={form.password}
-                            onChange={(event) => handleChange("password", event.target.value)}
-                            placeholder="Enter password"
-                            required
-                          />
-                          <span
-                            className={`fas toggle-password ${showPassword ? "fa-eye" : "fa-eye-slash"}`}
-                            onClick={() => setShowPassword((prev) => !prev)}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="col-lg-6">
-                      <div className="input-blocks">
-                        <label>Confirm Password</label>
-                        <div className="pass-group">
-                          <input
-                            type={showConfirmPassword ? "text" : "password"}
-                            className="pass-input form-control"
-                            value={form.confirmPassword}
-                            onChange={(event) =>
-                              handleChange("confirmPassword", event.target.value)
-                            }
-                            placeholder="Confirm password"
-                            required
-                          />
-                          <span
-                            className={`fas toggle-password ${showConfirmPassword ? "fa-eye" : "fa-eye-slash"}`}
-                            onClick={() => setConfirmPassword((prev) => !prev)}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="col-lg-12">
-                      <div className="mb-0 input-blocks">
-                        <label className="form-label">Address</label>
-                        <textarea
-                          className="form-control mb-1"
-                          value={form.address}
-                          onChange={(event) => handleChange("address", event.target.value)}
-                          rows={3}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="modal-footer-btn">
-                    <button
-                      type="button"
-                      className="btn btn-cancel me-2"
-                      data-bs-dismiss="modal"
-                      onClick={resetForm}
-                    >
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn btn-submit" disabled={loading}>
-                      {loading ? "Saving..." : "Submit"}
-                    </button>
-                  </div>
-                </form>
+                <div className="col-md-6 mb-3">
+                  <label className="modern-form-label">Phone</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={form.phone}
+                    onChange={(e) => handleChange("phone", e.target.value)}
+                    placeholder="+923247890891"
+                  />
+                </div>
+                <div className="col-md-6 mb-3">
+                  <label className="modern-form-label">
+                    Email <span className="text-danger">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    className="form-control"
+                    value={form.email}
+                    onChange={(e) => handleChange("email", e.target.value)}
+                    required
+                  />
+                </div>
               </div>
             </div>
+
+            <div className="col-md-6 mb-3">
+              <label className="modern-form-label">
+                Role <span className="text-danger">*</span>
+              </label>
+              <Select
+                classNamePrefix="react-select"
+                options={roleOptions}
+                value={roleOptions.find((option) => option.value === form.role_id) || null}
+                onChange={(option) => handleChange("role_id", option?.value || "")}
+                placeholder={rolesLoading ? "Loading roles..." : "Choose role"}
+                isDisabled={rolesLoading || !roleOptions.length}
+              />
+              {!rolesLoading && !roleOptions.length ? (
+                <small className="text-muted">
+                  No assignable roles yet. Create one in Roles &amp; Permissions first.
+                </small>
+              ) : null}
+            </div>
+
+            {isSuperAdmin ? (
+              <div className="col-md-6 mb-3">
+                <label className="modern-form-label">Status</label>
+                <Select
+                  classNamePrefix="react-select"
+                  options={statusOptions}
+                  value={statusOptions.find((option) => option.value === form.status) || statusOptions[0]}
+                  onChange={(option) => handleChange("status", option?.value || "active")}
+                  placeholder="Choose status"
+                />
+              </div>
+            ) : null}
+
+            <div className="col-md-6 mb-3">
+              <label className="modern-form-label">
+                Password <span className="text-danger">*</span>
+              </label>
+              <div className="pass-group">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  className="pass-input form-control"
+                  value={form.password}
+                  onChange={(e) => handleChange("password", e.target.value)}
+                  placeholder="Enter password"
+                  required
+                />
+                <span
+                  className={`fas toggle-password ${showPassword ? "fa-eye" : "fa-eye-slash"}`}
+                  onClick={() => setShowPassword((prev) => !prev)}
+                />
+              </div>
+            </div>
+
+            <div className="col-md-6 mb-3">
+              <label className="modern-form-label">
+                Confirm password <span className="text-danger">*</span>
+              </label>
+              <div className="pass-group">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  className="pass-input form-control"
+                  value={form.confirmPassword}
+                  onChange={(e) => handleChange("confirmPassword", e.target.value)}
+                  placeholder="Confirm password"
+                  required
+                />
+                <span
+                  className={`fas toggle-password ${showConfirmPassword ? "fa-eye" : "fa-eye-slash"}`}
+                  onClick={() => setConfirmPassword((prev) => !prev)}
+                />
+              </div>
+            </div>
+
+            <div className="col-md-12 mb-1">
+              <label className="modern-form-label">Address</label>
+              <textarea
+                className="form-control"
+                value={form.address}
+                onChange={(e) => handleChange("address", e.target.value)}
+                rows={2}
+              />
+            </div>
           </div>
-        </div>
-      </div>
-    </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="light" className="modern-form-cancel" onClick={handleClose}>
+            Cancel
+          </Button>
+          <Button type="submit" className="modern-form-submit" disabled={loading}>
+            {loading ? "Saving..." : "Create User"}
+          </Button>
+        </Modal.Footer>
+      </form>
+    </Modal>
   );
+};
+
+AddUsers.propTypes = {
+  show: PropTypes.bool,
+  onClose: PropTypes.func,
 };
 
 export default AddUsers;

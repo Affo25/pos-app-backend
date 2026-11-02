@@ -8,6 +8,7 @@ const {
   deleteProducts,
   getStockReport,
   importProductsFromExcel,
+  exportProductsToExcel,
 } = require('../controllers/productsController');
 
 const router = express.Router();
@@ -18,6 +19,7 @@ const upload = multer({
 
 router.post('/', protect, createProducts);
 router.post('/import-excel', protect, upload.single('file'), importProductsFromExcel);
+router.get('/export-excel', protect, exportProductsToExcel);
 router.get('/', protect, getProductss);
 router.get('/stock-report', protect, getStockReport);
 router.put('/:id', protect, updateProducts);

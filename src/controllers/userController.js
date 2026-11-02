@@ -149,6 +149,10 @@ exports.loginUser = async (req, res) => {
     
     if (!user) return res.status(400).json({ message: "Invalid credentials" });
 
+    if (user.status === "inactive") {
+      return res.status(403).json({ message: "Account is disabled. Please contact support." });
+    }
+
     // Check if user is blocked
     if (user.is_blocked) {
       return res.status(403).json({ message: "Account is blocked. Please contact support." });
@@ -365,6 +369,7 @@ exports.createUser = async (req, res) => {
       allowed_devices,
       phone,
       address,
+      image,
       role_id,
     } = req.body;
 
@@ -404,6 +409,7 @@ exports.createUser = async (req, res) => {
       license_status: license_status || "active",
       allowed_devices: allowed_devices || 1,
       is_blocked: false,
+      image: typeof image === "string" ? image.trim() : "",
     };
 
     applyPhoneAddressFields(userData, { phone, address });
@@ -424,6 +430,9 @@ exports.createUser = async (req, res) => {
       _id: newUser._id,
       name: newUser.name,
       email: newUser.email,
+      phone: newUser.phone,
+      address: newUser.address,
+      image: newUser.image,
       user_type: newUser.user_type,
       role_id: newUser.role_id,
       allowed_pages: newUser.allowed_pages,
@@ -490,6 +499,7 @@ exports.updateUser = async (req, res) => {
       is_blocked,
       phone,
       address,
+      image,
       role_id,
     } = req.body;
 
@@ -508,6 +518,17 @@ exports.updateUser = async (req, res) => {
       allowed_devices,
       is_blocked,
     };
+
+    if (typeof image === "string") {
+      updateData.image = image.trim();
+    }
+
+    // Only superAdmin may change account enable/disable status
+    if (Object.prototype.hasOwnProperty.call(req.body, "status")) {
+      if (req.user?.user_type !== "superAdmin") {
+        delete updateData.status;
+      }
+    }
 
     applyPhoneAddressFields(updateData, { phone, address });
 
@@ -748,6 +769,55 @@ exports.getUserProfile = async (req, res) => {
     res.status(200).json(userObj);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getUserById = async (req, res) => {
+  try {
+    await assertCanManageUser(req.user, req.params.id);
+    const user = await User.findById(req.params.id)
+      .select("-password -plain_password")
+      .populate("role_id", "name key");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    return res.status(200).json(user);
+  } catch (error) {
+    return res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
+/**
+ * SuperAdmin-only: enable (active) / disable (inactive) a user account.
+ */
+exports.setUserStatus = async (req, res) => {
+  try {
+    if (req.user?.user_type !== "superAdmin") {
+      return res.status(403).json({ message: "Only super admin can enable or disable users" });
+    }
+    const { status } = req.body || {};
+    if (!["active", "inactive"].includes(status)) {
+      return res.status(400).json({ message: "status must be active or inactive" });
+    }
+    if (String(req.user._id) === String(req.params.id)) {
+      return res.status(400).json({ message: "You cannot disable your own account" });
+    }
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true },
+    )
+      .select("-password -plain_password")
+      .populate("role_id", "name key");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    return res.status(200).json({
+      message: `User ${status === "active" ? "enabled" : "disabled"} successfully`,
+      user,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 };
 

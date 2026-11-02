@@ -1,6 +1,7 @@
 import React from "react";
 import PropTypes from "prop-types";
 import { base_path } from "../../environment";
+import { getApiBase } from "../../config/runtimeConfig";
 
 const ImageWithBasePath = (props) => {
   const src = props.src || "";
@@ -9,7 +10,16 @@ const ImageWithBasePath = (props) => {
     src.startsWith("data:") ||
     src.startsWith("blob:") ||
     src.startsWith("//");
-  const fullSrc = isAbsolute ? src : `${base_path}${src}`;
+  const isApiAsset =
+    src.startsWith("/uploads/") ||
+    src.startsWith("/api/") ||
+    src.includes("/api/uploads/");
+  const apiOrigin = getApiBase().replace(/\/api\/?$/, "");
+  const fullSrc = isAbsolute
+    ? src
+    : isApiAsset
+      ? `${apiOrigin}${src.startsWith("/") ? src : `/${src}`}`
+      : `${base_path}${src}`;
 
   return (
     <img

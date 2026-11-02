@@ -1,11 +1,13 @@
+const { resolveAdminId } = require('../utils/resolveAdminId');
 const Supplier = require('../models/Supplier');
 const PurchaseOrder = require('../models/PurchaseOrder');
 const { enrichPurchaseOrder, netOrderTotal, orderAmountPaid } = require('../utils/purchaseOrderHelpers');
+const { sheetRowsFromBuffer, sendExcel } = require('../utils/excelHelpers');
 
 exports.createSupplier = async (req, res) => {
   try {
      const adminId =
-      req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+      resolveAdminId(req.user);
     const data = {
       ...req.body,
       admin_id: adminId,
@@ -22,7 +24,7 @@ exports.createSupplier = async (req, res) => {
 
 exports.getSuppliers = async (req, res) => {
   try {
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
 
     const suppliers = await Supplier.find({ admin_id: adminId });
     res.status(200).json(suppliers);
@@ -35,7 +37,7 @@ const checkFacultyAccess = async (id, user) => {
   const faculty = await Supplier.findById(id);
   if (!faculty) throw new Error('Faculty not found');
 
-  const loggedInAdminId = user.user_type === 'admin' ? user._id : user.admin_id;
+  const loggedInAdminId = resolveAdminId(user);
   if (faculty.admin_id.toString() !== loggedInAdminId.toString()) {
     throw new Error('Unauthorized access');
   }
@@ -64,10 +66,61 @@ exports.deleteSupplier = async (req, res) => {
   }
 };
 
+exports.exportSuppliersToExcel = async (req, res) => {
+  try {
+    const adminId = resolveAdminId(req.user);
+    const docs = await Supplier.find({ admin_id: adminId }).lean();
+    const rows = docs.map((s) => ({
+      name: s.name || '',
+      phone: s.phone || '',
+      email: s.email || '',
+      address: s.address || '',
+      opening_balance: s.opening_balance ?? 0,
+      opening_balance_note: s.opening_balance_note || '',
+    }));
+    return sendExcel(res, rows, 'suppliers-export.xlsx');
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+exports.importSuppliersFromExcel = async (req, res) => {
+  try {
+    if (!req.file?.buffer) return res.status(400).json({ error: 'Excel file is required' });
+    const adminId = resolveAdminId(req.user);
+    const rows = sheetRowsFromBuffer(req.file.buffer);
+    const toCreate = [];
+    let skipped = 0;
+    rows.forEach((row) => {
+      const name = String(row.name || '').trim();
+      const phone = String(row.phone || '').trim();
+      if (!name || !phone) {
+        skipped += 1;
+        return;
+      }
+      toCreate.push({
+        name,
+        phone,
+        email: String(row.email || '').trim() || undefined,
+        address: String(row.address || '').trim() || undefined,
+        opening_balance: Number(row.opening_balance || 0),
+        opening_balance_note: String(row.opening_balance_note || '').trim() || undefined,
+        admin_id: adminId,
+        created_by: req.user._id,
+      });
+    });
+    if (!toCreate.length) return res.status(400).json({ error: 'No valid rows found' });
+    const inserted = await Supplier.insertMany(toCreate);
+    return res.status(201).json({ message: 'Suppliers imported', inserted: inserted.length, skipped });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
 exports.getSupplierLedger = async (req, res) => {
   try {
     const supplier = await checkFacultyAccess(req.params.id, req.user);
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
 
     const orders = await PurchaseOrder.find({
       supplier_id: supplier._id,

@@ -27,3 +27,11 @@ export const authFetch = (path, options = {}) =>
     ...options,
     headers: { ...jsonHeaders(), ...options.headers },
   });
+
+/** Multipart / FormData — do not set Content-Type (browser sets boundary). */
+export const authFetchForm = (path, options = {}) => {
+  const token = Cookies.get("token");
+  const headers = { Authorization: `Bearer ${token}`, ...(options.headers || {}) };
+  delete headers["Content-Type"];
+  return fetch(apiUrl(path), { ...options, headers });
+};

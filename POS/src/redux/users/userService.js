@@ -7,6 +7,11 @@ export const fetchAllUsers = async () => {
   return parseResponse(response, "Failed to fetch users");
 };
 
+export const fetchUserById = async (id) => {
+  const response = await authFetch(`${API_URL}/${id}`);
+  return parseResponse(response, "Failed to fetch user");
+};
+
 export const createUser = async (userData) => {
   const response = await authFetch(API_URL, {
     method: "POST",
@@ -21,6 +26,14 @@ export const updateUser = async (id, userData) => {
     body: JSON.stringify(userData),
   });
   return parseResponse(response, "Failed to update user");
+};
+
+export const setUserStatus = async (id, status) => {
+  const response = await authFetch(`${API_URL}/${id}/status`, {
+    method: "PUT",
+    body: JSON.stringify({ status }),
+  });
+  return parseResponse(response, "Failed to update user status");
 };
 
 export const deleteUser = async (id) => {

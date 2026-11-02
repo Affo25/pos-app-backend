@@ -1,262 +1,319 @@
-import React, { useState } from "react";
-import Breadcrumbs from "../../core/breadcrumbs";
-import { Link } from "react-router-dom";
-import { Filter, Sliders, User, Globe, Edit, Eye, Trash2 } from "react-feather";
-import ImageWithBasePath from "../../core/img/imagewithbasebath";
-import Select from "react-select";
-import { useSelector } from "react-redux";
+import React, { useEffect, useMemo, useState } from "react";
 import { Table } from "antd";
+import { Modal, Button } from "react-bootstrap";
+import { useDispatch, useSelector } from "react-redux";
+import { Edit, Trash2, Users } from "feather-icons-react/build/IconComponents";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
-import SupplierModal from "../../core/modals/peoples/supplierModal";
+import CrudListToolbar from "../../core/components/CrudListToolbar";
+import ModernCrudShell from "../../core/components/ModernCrudShell";
+import EntityImageUpload from "../../core/components/EntityImageUpload";
+import { resolveMediaUrl } from "../../redux/utils/uploadMedia";
+import {
+  createSupplierAction,
+  deleteSupplierAction,
+  fetchAllSuppliersAction,
+  updateSupplierAction,
+} from "../../redux/suppliers/supplierSlice";
+
+const empty = {
+  name: "",
+  phone: "",
+  email: "",
+  address: "",
+  image: "",
+  opening_balance: "0",
+  opening_balance_note: "",
+};
 
 const Suppliers = () => {
-  const data = useSelector((state) => state.supplierdata);
+  const dispatch = useDispatch();
+  const MySwal = withReactContent(Swal);
+  const { suppliers, loading } = useSelector((state) => state.suppliers);
 
-  const [isFilterVisible, setIsFilterVisible] = useState(false);
-  const toggleFilterVisibility = () => {
-    setIsFilterVisible((prevVisibility) => !prevVisibility);
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState(empty);
+  const [editId, setEditId] = useState(null);
+  const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState("all");
+  const [filtersOpen, setFiltersOpen] = useState(true);
+
+  useEffect(() => {
+    dispatch(fetchAllSuppliersAction());
+  }, [dispatch]);
+
+  const rows = Array.isArray(suppliers) ? suppliers : [];
+
+  const tabCounts = useMemo(
+    () => ({
+      all: rows.length,
+      with: rows.filter((s) => !!s.email).length,
+      without: rows.filter((s) => !s.email).length,
+    }),
+    [rows],
+  );
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter((s) => {
+      const hay = `${s.name || ""} ${s.email || ""} ${s.phone || ""} ${s.address || ""}`.toLowerCase();
+      if (q && !hay.includes(q)) return false;
+      if (activeTab === "with" && !s.email) return false;
+      if (activeTab === "without" && s.email) return false;
+      return true;
+    });
+  }, [rows, search, activeTab]);
+
+  const openCreate = () => {
+    setEditId(null);
+    setForm(empty);
+    setShowModal(true);
   };
 
-  const options = [
-    { value: "sortByDate", label: "Sort by Date" },
-    { value: "140923", label: "14 09 23" },
-    { value: "110923", label: "11 09 23" },
-  ];
-  const optionsTwo = [
-    { label: "Choose Customer Name", value: "" },
-    { label: "Benjamin", value: "Benjamin" },
-    { label: "Ellen", value: "Ellen" },
-    { label: "Freda", value: "Freda" },
-    { label: "Kaitlin", value: "Kaitlin" },
-  ];
+  const openEdit = (row) => {
+    setEditId(row._id);
+    setForm({
+      name: row.name || "",
+      phone: row.phone || "",
+      email: row.email || "",
+      address: row.address || "",
+      image: row.image || "",
+      opening_balance: String(row.opening_balance ?? 0),
+      opening_balance_note: row.opening_balance_note || "",
+    });
+    setShowModal(true);
+  };
 
-  const countries = [
-    { label: "Choose Country", value: "" },
-    { label: "India", value: "India" },
-    { label: "USA", value: "USA" },
-  ];
+  const closeModal = () => {
+    setShowModal(false);
+    setEditId(null);
+    setForm(empty);
+  };
+
+  const onChange = (key) => (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }));
+
+  const onSubmit = (e) => {
+    e.preventDefault();
+    if (!form.name.trim() || !form.phone.trim()) return;
+    const payload = {
+      name: form.name.trim(),
+      phone: form.phone.trim(),
+      email: form.email.trim() || undefined,
+      address: form.address.trim() || undefined,
+      image: form.image || "",
+      opening_balance: Number(form.opening_balance || 0),
+      opening_balance_note: form.opening_balance_note.trim() || undefined,
+    };
+    if (editId) dispatch(updateSupplierAction(editId, payload));
+    else dispatch(createSupplierAction(payload));
+    closeModal();
+  };
+
+  const onDelete = (id) => {
+    MySwal.fire({
+      title: "Delete supplier?",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete",
+    }).then((result) => {
+      if (result.isConfirmed) dispatch(deleteSupplierAction(id));
+    });
+  };
+
+  const dataSource = useMemo(
+    () =>
+      filtered.map((s, i) => ({
+        key: s._id || String(i),
+        index: i + 1,
+        ...s,
+        openingBal: Number(s.opening_balance || 0).toFixed(2),
+      })),
+    [filtered],
+  );
 
   const columns = [
+    { title: "#", dataIndex: "index", width: 60 },
     {
-      render: () => (
-        <label className="checkboxs">
-          <input type="checkbox" />
-          <span className="checkmarks" />
-        </label>
-      ),
+      title: "Supplier",
+      dataIndex: "name",
+      render: (text, row) => {
+        const img = resolveMediaUrl(row.image);
+        return (
+          <span className="d-inline-flex align-items-center gap-2">
+            {img ? (
+              <img src={img} alt="" className="modern-crud-avatar" />
+            ) : (
+              <span className="modern-crud-avatar d-inline-flex align-items-center justify-content-center text-muted">
+                {(text || "?").charAt(0).toUpperCase()}
+              </span>
+            )}
+            <span>{text}</span>
+          </span>
+        );
+      },
+      sorter: (a, b) => String(a.name).localeCompare(String(b.name)),
     },
-
-    {
-      title: "Supplier Name",
-      dataIndex: "supplierName",
-      render: (text, record) => (
-        <span className="productimgname">
-          <Link to="#" className="product-img stock-img">
-            <ImageWithBasePath alt="" src={record.image} />
-          </Link>
-          <Link to="#">{text}</Link>
-        </span>
-      ),
-      sorter: (a, b) => a.supplierName.length - b.supplierName.length,
-    },
-    {
-      title: "Code",
-      dataIndex: "code",
-      sorter: (a, b) => a.code.length - b.code.length,
-    },
-
     {
       title: "Email",
       dataIndex: "email",
-      sorter: (a, b) => a.email.length - b.email.length,
+      render: (v) => v || "-",
+      sorter: (a, b) => String(a.email || "").localeCompare(String(b.email || "")),
     },
-
     {
       title: "Phone",
       dataIndex: "phone",
-      sorter: (a, b) => a.phone.length - b.phone.length,
+      sorter: (a, b) => String(a.phone || "").localeCompare(String(b.phone || "")),
     },
-
     {
-      title: "Country",
-      dataIndex: "country",
-      sorter: (a, b) => a.country.length - b.country.length,
+      title: "Address",
+      dataIndex: "address",
+      render: (v) => v || "-",
     },
-
+    {
+      title: "Opening Bal.",
+      dataIndex: "openingBal",
+      render: (v) => `PKR ${v}`,
+      sorter: (a, b) => Number(a.opening_balance || 0) - Number(b.opening_balance || 0),
+    },
     {
       title: "Action",
-      dataIndex: "action",
-      render: () => (
-        <td className="action-table-data">
-          <div className="edit-delete-action">
-            <div className="input-block add-lists"></div>
-
-            <Link className="me-2 p-2" to="#">
-              <Eye className="feather-view" />
-            </Link>
-
-            <Link
-              className="me-2 p-2"
-              to="#"
-              data-bs-toggle="modal"
-              data-bs-target="#edit-units"
-            >
-              <Edit className="feather-edit" />
-            </Link>
-
-            <Link
-              className="confirm-text p-2"
-              to="#"
-              onClick={showConfirmationAlert}
-            >
-              <Trash2 className="feather-trash-2" />
-            </Link>
-          </div>
-        </td>
+      width: 110,
+      render: (_, row) => (
+        <div className="modern-crud-actions">
+          <button type="button" className="modern-crud-icon-btn" onClick={() => openEdit(row)} title="Edit">
+            <Edit size={15} />
+          </button>
+          <button
+            type="button"
+            className="modern-crud-icon-btn is-danger"
+            onClick={() => onDelete(row._id)}
+            title="Delete"
+          >
+            <Trash2 size={15} />
+          </button>
+        </div>
       ),
-      sorter: (a, b) => a.createdby.length - b.createdby.length,
     },
   ];
 
-  const MySwal = withReactContent(Swal);
-
-  const showConfirmationAlert = () => {
-    MySwal.fire({
-      title: "Are you sure?",
-      text: "You won't be able to revert this!",
-      showCancelButton: true,
-      confirmButtonColor: "#00ff00",
-      confirmButtonText: "Yes, delete it!",
-      cancelButtonColor: "#ff0000",
-      cancelButtonText: "Cancel",
-    }).then((result) => {
-      if (result.isConfirmed) {
-        MySwal.fire({
-          title: "Deleted!",
-          text: "Your file has been deleted.",
-          className: "btn btn-success",
-          confirmButtonText: "OK",
-          customClass: {
-            confirmButton: "btn btn-success",
-          },
-        });
-      } else {
-        MySwal.close();
-      }
-    });
-  };
   return (
-    <div className="page-wrapper">
-      <div className="content">
-        <Breadcrumbs
-          maintitle="Supplier List "
-          subtitle="Manage Your Supplier"
-          addButton="Add New Supplier"
+    <>
+      <ModernCrudShell
+        title="Suppliers"
+        subtitle="Manage your suppliers."
+        icon={<Users size={18} />}
+        addLabel="Add Supplier"
+        onAdd={openCreate}
+        excelResource="/suppliers"
+        excelFileName="suppliers-export.xlsx"
+        canImportExcel
+        onExcelImported={() => dispatch(fetchAllSuppliersAction())}
+      >
+        <CrudListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search"
+          totalRecords={filtered.length}
+          showFiltersButton
+          filtersOpen={filtersOpen}
+          onToggleFilters={() => setFiltersOpen((v) => !v)}
+          stockFilterValue={activeTab}
+          onStockFilterChange={setActiveTab}
+          stockFilterOptions={[
+            { value: "all", label: "All", count: tabCounts.all },
+            { value: "with", label: "With Email", count: tabCounts.with, tone: "ok" },
+            { value: "without", label: "No Email", count: tabCounts.without, tone: "warn" },
+          ]}
+          tabs={[
+            { key: "all", label: "All", count: tabCounts.all },
+            { key: "with", label: "With Email", count: tabCounts.with, tone: "ok" },
+            { key: "without", label: "No Email", count: tabCounts.without, tone: "warn" },
+          ]}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
         />
-        {/* /product list */}
-        <div className="card table-list-card">
-          <div className="card-body">
-            <div className="table-top">
-              <div className="search-set">
-                <div className="search-input">
-                  <input
-                    type="text"
-                    placeholder="Search"
-                    className="form-control form-control-sm formsearch"
-                  />
-                  <Link to className="btn btn-searchset">
-                    <i data-feather="search" className="feather-search" />
-                  </Link>
+        <div className="modern-crud-table">
+          <Table
+            columns={columns}
+            dataSource={dataSource}
+            loading={loading}
+            pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: ["10", "20", "50"] }}
+            locale={{ emptyText: loading ? "Loading..." : "No suppliers found" }}
+          />
+        </div>
+      </ModernCrudShell>
+
+      <Modal show={showModal} onHide={closeModal} centered size="lg" dialogClassName="modern-form-modal">
+        <Modal.Header closeButton>
+          <Modal.Title>{editId ? "Edit Supplier" : "Add Supplier"}</Modal.Title>
+        </Modal.Header>
+        <form onSubmit={onSubmit}>
+          <Modal.Body>
+            <div className="row">
+              <div className="col-md-5 mb-3">
+                <EntityImageUpload
+                  label="Supplier photo"
+                  folder="suppliers"
+                  value={form.image}
+                  onChange={(url) => setForm((prev) => ({ ...prev, image: url || "" }))}
+                />
+              </div>
+              <div className="col-md-7">
+                <div className="row">
+                  <div className="col-md-6 mb-3">
+                    <label className="modern-form-label">
+                      Name <span className="text-danger">*</span>
+                    </label>
+                    <input className="form-control" value={form.name} onChange={onChange("name")} required />
+                  </div>
+                  <div className="col-md-6 mb-3">
+                    <label className="modern-form-label">
+                      Phone <span className="text-danger">*</span>
+                    </label>
+                    <input className="form-control" value={form.phone} onChange={onChange("phone")} required />
+                  </div>
+                  <div className="col-md-12 mb-3">
+                    <label className="modern-form-label">Email</label>
+                    <input type="email" className="form-control" value={form.email} onChange={onChange("email")} />
+                  </div>
                 </div>
               </div>
-              <div className="search-path">
-                <Link
-                  className={`btn btn-filter ${
-                    isFilterVisible ? "setclose" : ""
-                  }`}
-                  id="filter_search"
-                >
-                  <Filter
-                    className="filter-icon"
-                    onClick={toggleFilterVisibility}
-                  />
-                  <span onClick={toggleFilterVisibility}>
-                    <ImageWithBasePath
-                      src="assets/img/icons/closes.svg"
-                      alt="img"
-                    />
-                  </span>
-                </Link>
+              <div className="col-md-6 mb-3">
+                <label className="modern-form-label">Address</label>
+                <input className="form-control" value={form.address} onChange={onChange("address")} />
               </div>
-              <div className="form-sort stylewidth">
-                <Sliders className="info-img" />
-
-                <Select
-                  className="select "
-                  options={options}
-                  placeholder="Sort by Date"
+              <div className="col-md-3 mb-3">
+                <label className="modern-form-label">Opening balance (PKR)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="form-control"
+                  value={form.opening_balance}
+                  onChange={onChange("opening_balance")}
+                />
+              </div>
+              <div className="col-md-3 mb-3">
+                <label className="modern-form-label">Balance note</label>
+                <input
+                  className="form-control"
+                  placeholder="Optional note"
+                  value={form.opening_balance_note}
+                  onChange={onChange("opening_balance_note")}
                 />
               </div>
             </div>
-            {/* /Filter */}
-            <div
-              className={`card${isFilterVisible ? " visible" : ""}`}
-              id="filter_inputs"
-              style={{ display: isFilterVisible ? "block" : "none" }}
-            >
-              <div className="card-body pb-0">
-                <div className="row">
-                  <div className="col-lg-3 col-sm-6 col-12">
-                    <div className="input-blocks">
-                      <User className="info-img" />
-                      <Select
-                        options={optionsTwo}
-                        placeholder="Choose Customer Name"
-                      />
-                    </div>
-                  </div>
-                  <div className="col-lg-3 col-sm-6 col-12">
-                    <div className="input-blocks">
-                      <Globe className="info-img" />
-                      <Select
-                        options={countries}
-                        placeholder="Choose Country"
-                      />
-                    </div>
-                  </div>
-                  <div className="col-lg-3 col-sm-6 col-12 ms-auto">
-                    <div className="input-blocks">
-                      <a className="btn btn-filters ms-auto">
-                        {" "}
-                        <i
-                          data-feather="search"
-                          className="feather-search"
-                        />{" "}
-                        Search{" "}
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            {/* /Filter */}
-            <div className="table-responsive">
-              <Table
-                className="table datanew"
-                columns={columns}
-                dataSource={data}
-                rowKey={(record) => record.id}
-                // pagination={true}
-              />
-            </div>
-          </div>
-        </div>
-        {/* /product list */}
-      </div>
-
-      <SupplierModal />
-    </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="light" className="modern-form-cancel" onClick={closeModal}>
+              Cancel
+            </Button>
+            <Button type="submit" className="modern-form-submit">
+              {editId ? "Update Supplier" : "Create Supplier"}
+            </Button>
+          </Modal.Footer>
+        </form>
+      </Modal>
+    </>
   );
 };
 

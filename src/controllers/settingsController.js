@@ -40,12 +40,19 @@ const INVOICE_KEYS = [
   'receiptPoweredBy',
   'receiptWebsite',
   'logoUrl',
+  'sidebarLogoUrl',
   'primaryColor',
   'secondaryColor',
+  'buttonColor',
+  'sidebarColor',
   'gstin',
   'regNumber',
   'posLayout',
 ];
+
+function isHexColor(v) {
+  return typeof v === 'string' && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v.trim());
+}
 
 exports.updateSettings = async (req, res) => {
   try {
@@ -54,7 +61,7 @@ exports.updateSettings = async (req, res) => {
     const doc = await getOrCreateSettings(ownerId);
     const { invoiceDesign } = req.body || {};
     if (invoiceDesign && typeof invoiceDesign === 'object') {
-      const allowedTemplates = ['report_a4', 'restaurant_80mm', 'a4_80mm_strip', 'pos_receipt'];
+      const allowedTemplates = ['report_a4', 'restaurant_80mm', 'a4_80mm_strip', 'pos_receipt', 'purchase_order_a4'];
       for (const k of INVOICE_KEYS) {
         if (Object.prototype.hasOwnProperty.call(invoiceDesign, k)) {
           let v = invoiceDesign[k];
@@ -65,8 +72,23 @@ exports.updateSettings = async (req, res) => {
             const vn = v.trim().toLowerCase();
             v = vn === 'gridview' || vn === 'grid' ? 'gridview' : 'tabular';
           }
+          if (['primaryColor', 'secondaryColor', 'buttonColor', 'sidebarColor'].includes(k) && v) {
+            if (!isHexColor(v)) continue;
+            v = v.trim();
+          }
           doc.invoiceDesign[k] = v;
         }
+      }
+      // Keep button/sidebar colors in sync with primary/secondary when only one side is set
+      if (invoiceDesign.buttonColor && isHexColor(invoiceDesign.buttonColor)) {
+        doc.invoiceDesign.primaryColor = invoiceDesign.buttonColor.trim();
+      } else if (invoiceDesign.primaryColor && isHexColor(invoiceDesign.primaryColor)) {
+        doc.invoiceDesign.buttonColor = invoiceDesign.primaryColor.trim();
+      }
+      if (invoiceDesign.sidebarColor && isHexColor(invoiceDesign.sidebarColor)) {
+        doc.invoiceDesign.secondaryColor = invoiceDesign.sidebarColor.trim();
+      } else if (invoiceDesign.secondaryColor && isHexColor(invoiceDesign.secondaryColor)) {
+        doc.invoiceDesign.sidebarColor = invoiceDesign.secondaryColor.trim();
       }
     }
     await doc.save();
@@ -107,6 +129,39 @@ exports.uploadInvoiceLogo = async (req, res) => {
   } catch (err) {
     console.error('uploadInvoiceLogo', err);
     return res.status(500).json({ error: 'Logo upload failed', detail: err.message });
+  }
+};
+
+/**
+ * POST /api/settings/sidebar-logo — multipart field "file"
+ */
+exports.uploadSidebarLogo = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const ownerId = getTenantOwnerId(req.user);
+    if (!ownerId) return res.status(400).json({ error: 'Could not resolve tenant' });
+
+    const publicPath = `/uploads/sidebar-logos/${req.file.filename}`;
+    const doc = await getOrCreateSettings(ownerId);
+
+    if (doc.invoiceDesign.sidebarLogoUrl && doc.invoiceDesign.sidebarLogoUrl.startsWith('/uploads/sidebar-logos/')) {
+      const oldName = path.basename(doc.invoiceDesign.sidebarLogoUrl);
+      const oldAbs = path.join(path.dirname(req.file.path), oldName);
+      if (oldAbs !== req.file.path) {
+        try {
+          if (fs.existsSync(oldAbs)) fs.unlinkSync(oldAbs);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+
+    doc.invoiceDesign.sidebarLogoUrl = publicPath;
+    await doc.save();
+    return res.json({ settings: doc, sidebarLogoUrl: publicPath });
+  } catch (err) {
+    console.error('uploadSidebarLogo', err);
+    return res.status(500).json({ error: 'Sidebar logo upload failed', detail: err.message });
   }
 };
 

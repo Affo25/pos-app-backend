@@ -2,28 +2,31 @@ import { takeLatest, put, call } from "redux-saga/effects";
 import { toast } from "react-toastify";
 import * as settingService from "./settingService";
 import * as actions from "./settingSlice";
+import { handleApiCall } from "../utils/sagaHelpers";
 
-function* handleApiCall(apiFn, ...args) {
-  try {
-    yield put(actions.operationStart());
-    const result = yield call(apiFn, ...args);
-    yield put(actions.operationSuccess());
-    return result;
-  } catch (error) {
-    yield put(actions.operationFailure(error.message));
-    toast.error(error.message);
-    throw error;
-  }
+function normalizeSettings(payload) {
+  return payload?.settings ?? payload ?? null;
 }
 
 function* fetchSettings() {
-  const settings = yield handleApiCall(settingService.fetchSettings);
-  yield put(actions.fetchSettingsSuccess(settings));
+  const { ok, result } = yield call(
+    handleApiCall,
+    actions,
+    settingService.fetchSettings,
+  );
+  if (!ok) return;
+  yield put(actions.fetchSettingsSuccess(normalizeSettings(result)));
 }
 
 function* updateSettings({ payload }) {
-  const settings = yield handleApiCall(settingService.updateSettings, payload);
-  yield put(actions.updateSettingsSuccess(settings));
+  const { ok, result } = yield call(
+    handleApiCall,
+    actions,
+    settingService.updateSettings,
+    payload,
+  );
+  if (!ok) return;
+  yield put(actions.updateSettingsSuccess(normalizeSettings(result)));
   toast.success("Settings updated successfully");
 }
 

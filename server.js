@@ -60,11 +60,26 @@ try {
 }
 
 try {
-  const { isR2Configured } = require('./src/config/cloudflareR2');
-  if (isR2Configured()) {
-    console.log('✅ Cloudflare R2 product images: POST /api/uploads');
+  const { isR2Configured, verifyR2Connection } = require('./src/config/cloudflareR2');
+  if (!isR2Configured()) {
+    console.warn(
+      '⚠️ Cloudflare R2 not configured — set CLOUDFLARE_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME',
+    );
   } else {
-    console.warn('⚠️ Cloudflare R2 not configured — set R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY');
+    verifyR2Connection()
+      .then((info) => {
+        console.log(
+          `✅ Cloudflare R2 connected — bucket "${info.bucket}" @ ${info.endpoint} (POST /api/uploads)`,
+        );
+        if (info.publicUrl) {
+          console.log(`   🌐 R2 public URL: ${info.publicUrl}`);
+        }
+      })
+      .catch((err) => {
+        console.error(
+          `❌ Cloudflare R2 connection failed — ${err.message}. Check R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY (Object Read & Write token).`,
+        );
+      });
   }
 } catch (e) {
   console.warn('⚠️ Cloudflare R2 status check skipped:', e.message);

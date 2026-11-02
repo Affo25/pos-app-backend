@@ -2,13 +2,14 @@ import React from "react";
 import { Route, Routes } from "react-router-dom";
 import Header from "../InitialPage/Sidebar/Header";
 import Sidebar from "../InitialPage/Sidebar/Sidebar";
-import { pagesRoute, posRoutes, publicRoutes } from "./router.link";
+import { pagesRoute, publicRoutes } from "./router.link";
 import { Outlet } from "react-router-dom";
 import { useSelector } from "react-redux";
 import ThemeSettings from "../InitialPage/themeSettings";
 // import CollapsedSidebar from "../InitialPage/Sidebar/collapsedSidebar";
 import Loader from "../feature-module/loader/loader";
 import AuthGuard from "../components/AuthGuard";
+import BrandThemeApplier from "../components/BrandThemeApplier";
 // import HorizontalSidebar from "../InitialPage/Sidebar/horizontalSidebar";
 //import LoadingSpinner from "../InitialPage/Sidebar/LoadingSpinner";
 
@@ -18,6 +19,7 @@ const AllRoutes = () => {
   const HeaderLayout = () => (
     <AuthGuard>
     <div className={`main-wrapper ${data ? "header-collapse" : ""}`}>
+      <BrandThemeApplier />
       <Header />
       {/* {layoutStyles == "collapsed" ? (
         <CollapsedSidebar />
@@ -42,27 +44,11 @@ const AllRoutes = () => {
     </div>
   );
 
-  const Pospages = () => (
-    <AuthGuard>
-      <div>
-        <Header />
-        <Outlet />
-        <Loader />
-        <ThemeSettings />
-      </div>
-    </AuthGuard>
-  );
-
   console.log(publicRoutes, "dashboard");
 
   return (
     <div>
       <Routes>
-        <Route path="/pos" element={<Pospages />}>
-          {posRoutes.map((route, id) => (
-            <Route path={route.path} element={route.element} key={id} />
-          ))}
-        </Route>
         <Route path={"/"} element={<HeaderLayout />}>
           {publicRoutes.map((route, id) => (
             <Route path={route.path} element={route.element} key={id} />

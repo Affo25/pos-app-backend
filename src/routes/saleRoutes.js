@@ -8,6 +8,7 @@ const {
   createBilling,
   getInvoiceById,
   getNextInvoiceNumber,
+  exportSalesToExcel,
 } = require('../controllers/saleController');
 
 const router = express.Router();
@@ -15,6 +16,7 @@ const router = express.Router();
 router.post('/', protect, createSale);
 router.post('/billing', protect, createBilling);
 router.get('/next-invoice-number', protect, getNextInvoiceNumber);
+router.get('/export-excel', protect, exportSalesToExcel);
 router.get('/', protect, getSales);
 router.get('/invoice/:id', protect, getInvoiceById);
 router.put('/:id', protect, updateSale);

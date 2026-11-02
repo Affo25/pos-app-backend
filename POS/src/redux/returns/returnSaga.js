@@ -2,39 +2,56 @@ import { all, takeLatest, put, call } from "redux-saga/effects";
 import { toast } from "react-toastify";
 import * as returnService from "./returnService";
 import * as actions from "./returnSlice";
-
-function* handleApiCall(apiFn, ...args) {
-  try {
-    yield put(actions.operationStart());
-    const result = yield call(apiFn, ...args);
-    yield put(actions.operationSuccess());
-    return result;
-  } catch (error) {
-    yield put(actions.operationFailure(error.message));
-    toast.error(error.message);
-    throw error;
-  }
-}
+import { handleApiCall } from "../utils/sagaHelpers";
 
 function* fetchAllReturns() {
-  const returns = yield handleApiCall(returnService.fetchAllReturns);
+  const { ok, result: payload } = yield call(
+    handleApiCall,
+    actions,
+    returnService.fetchAllReturns,
+  );
+  if (!ok) return;
+  const returns = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.returns)
+      ? payload.returns
+      : [];
   yield put(actions.fetchReturnsSuccess(returns));
 }
 
 function* createReturn({ payload }) {
-  yield handleApiCall(returnService.createReturn, payload);
+  const { ok } = yield call(
+    handleApiCall,
+    actions,
+    returnService.createReturn,
+    payload,
+  );
+  if (!ok) return;
   toast.success("Return created successfully");
   yield call(fetchAllReturns);
 }
 
 function* updateReturn({ payload: { id, data } }) {
-  yield handleApiCall(returnService.updateReturn, id, data);
+  const { ok } = yield call(
+    handleApiCall,
+    actions,
+    returnService.updateReturn,
+    id,
+    data,
+  );
+  if (!ok) return;
   yield call(fetchAllReturns);
   toast.success("Return updated successfully");
 }
 
 function* deleteReturn({ payload: id }) {
-  yield handleApiCall(returnService.deleteReturn, id);
+  const { ok } = yield call(
+    handleApiCall,
+    actions,
+    returnService.deleteReturn,
+    id,
+  );
+  if (!ok) return;
   yield call(fetchAllReturns);
   toast.success("Return deleted successfully");
 }

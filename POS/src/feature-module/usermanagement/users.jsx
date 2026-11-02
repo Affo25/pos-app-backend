@@ -1,15 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { OverlayTrigger, Tooltip } from "react-bootstrap";
+import { Table } from "antd";
 import { Link } from "react-router-dom";
-import ImageWithBasePath from "../../core/img/imagewithbasebath";
-import { ChevronUp, RotateCcw } from "feather-icons-react/build/IconComponents";
-import { setToogleHeader } from "../../core/redux/action";
 import { useDispatch, useSelector } from "react-redux";
-import { Filter, PlusCircle, StopCircle, User, Zap } from "react-feather";
-import Select from "react-select";
+import { Edit, Eye, Trash2, Users as UsersIcon } from "feather-icons-react/build/IconComponents";
 import withReactContent from "sweetalert2-react-content";
 import Swal from "sweetalert2";
-import Table from "../../core/pagination/datatable";
 import AddUsers from "../../core/modals/usermanagement/addusers";
 import EditUser from "../../core/modals/usermanagement/edituser";
 import {
@@ -17,6 +12,10 @@ import {
   fetchAllUsersAction,
 } from "../../redux/users/userSlice";
 import { fetchAllRolesAction } from "../../redux/roles/roleSlice";
+import CrudListToolbar from "../../core/components/CrudListToolbar";
+import ModernCrudShell from "../../core/components/ModernCrudShell";
+import { resolveMediaUrl } from "../../redux/utils/uploadMedia";
+import { all_routes } from "../../Router/all_routes";
 
 const formatDate = (value) => {
   if (!value) return "-";
@@ -24,79 +23,74 @@ const formatDate = (value) => {
 };
 
 const mapUserToRow = (user) => ({
+  key: user._id,
   id: user._id,
   _id: user._id,
   username: user.name,
   phone: user.phone || "-",
   email: user.email,
   role: user.role_id?.name || user.user_type || "-",
+  roleId: user.role_id?._id || user.role_id || "",
   createdon: formatDate(user.createdAt),
   status: user.status === "active" ? "Active" : "Inactive",
-  img: "assets/img/users/user-01.jpg",
+  rawStatus: user.status || "inactive",
+  image: user.image || "",
   raw: user,
 });
 
 const Users = () => {
   const dispatch = useDispatch();
-  const data = useSelector((state) => state.toggle_header);
   const { users, loading } = useSelector((state) => state.users);
   const { roles } = useSelector((state) => state.roles);
 
   const [searchText, setSearchText] = useState("");
-  const [filterStatus, setFilterStatus] = useState(null);
-  const [filterRole, setFilterRole] = useState(null);
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [activeTab, setActiveTab] = useState("all");
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [isFilterVisible, setIsFilterVisible] = useState(false);
 
   useEffect(() => {
     dispatch(fetchAllUsersAction());
     dispatch(fetchAllRolesAction());
   }, [dispatch]);
 
+  const rows = useMemo(() => (users || []).map(mapUserToRow), [users]);
+
+  const tabCounts = useMemo(
+    () => ({
+      all: rows.length,
+      active: rows.filter((r) => r.rawStatus === "active").length,
+      inactive: rows.filter((r) => r.rawStatus !== "active").length,
+    }),
+    [rows],
+  );
+
   const roleFilterOptions = useMemo(
     () => [
-      { value: "all", label: "All Roles" },
-      ...roles.map((role) => ({ value: role._id, label: role.name })),
+      { value: "all", label: "All roles" },
+      ...(roles || []).map((role) => ({ value: role._id, label: role.name })),
     ],
     [roles],
   );
 
-  const statusFilterOptions = [
-    { value: "all", label: "All Status" },
-    { value: "active", label: "Active" },
-    { value: "inactive", label: "Inactive" },
-  ];
-
   const tableData = useMemo(() => {
-    return users
-      .map(mapUserToRow)
-      .filter((row) => {
-        const search = searchText.trim().toLowerCase();
-        const matchesSearch =
-          !search ||
-          row.username.toLowerCase().includes(search) ||
-          row.email.toLowerCase().includes(search) ||
-          row.phone.toLowerCase().includes(search) ||
-          row.role.toLowerCase().includes(search);
-
-        const matchesStatus =
-          !filterStatus ||
-          filterStatus.value === "all" ||
-          row.raw.status === filterStatus.value;
-
-        const matchesRole =
-          !filterRole ||
-          filterRole.value === "all" ||
-          row.raw.role_id?._id === filterRole.value ||
-          row.raw.role_id === filterRole.value;
-
-        return matchesSearch && matchesStatus && matchesRole;
-      });
-  }, [users, searchText, filterStatus, filterRole]);
-
-  const toggleFilterVisibility = () => {
-    setIsFilterVisible((prevVisibility) => !prevVisibility);
-  };
+    const search = searchText.trim().toLowerCase();
+    return rows.filter((row) => {
+      const matchesSearch =
+        !search ||
+        row.username.toLowerCase().includes(search) ||
+        row.email.toLowerCase().includes(search) ||
+        row.phone.toLowerCase().includes(search) ||
+        row.role.toLowerCase().includes(search);
+      const matchesRole = roleFilter === "all" || String(row.roleId) === roleFilter;
+      const matchesStatus =
+        activeTab === "all" ||
+        (activeTab === "active" && row.rawStatus === "active") ||
+        (activeTab === "inactive" && row.rawStatus !== "active");
+      return matchesSearch && matchesRole && matchesStatus;
+    });
+  }, [rows, searchText, roleFilter, activeTab]);
 
   const MySwal = withReactContent(Swal);
 
@@ -105,13 +99,9 @@ const Users = () => {
       title: "Are you sure?",
       text: `Delete user "${user.name}"?`,
       showCancelButton: true,
-      confirmButtonColor: "#ff9f43",
       confirmButtonText: "Yes, delete it!",
-      cancelButtonText: "Cancel",
     }).then((result) => {
-      if (result.isConfirmed) {
-        dispatch(deleteUserAction(user._id));
-      }
+      if (result.isConfirmed) dispatch(deleteUserAction(user._id));
     });
   };
 
@@ -119,16 +109,24 @@ const Users = () => {
     {
       title: "User Name",
       dataIndex: "username",
-      render: (text, record) => (
-        <span className="userimgname">
-          <Link to="#" className="userslist-img bg-img">
-            <ImageWithBasePath alt="" src={record.img} />
+      render: (text, record) => {
+        const img = resolveMediaUrl(record.image);
+        return (
+          <Link
+            to={`${all_routes.users}/${record.id}`}
+            className="d-inline-flex align-items-center gap-2 text-decoration-none"
+          >
+            {img ? (
+              <img src={img} alt="" className="modern-crud-avatar" />
+            ) : (
+              <span className="modern-crud-avatar d-inline-flex align-items-center justify-content-center text-muted">
+                {(text || "?").charAt(0).toUpperCase()}
+              </span>
+            )}
+            <span className="text-dark">{text}</span>
           </Link>
-          <div>
-            <Link to="#">{text}</Link>
-          </div>
-        </span>
-      ),
+        );
+      },
       sorter: (a, b) => a.username.localeCompare(b.username),
     },
     {
@@ -154,215 +152,100 @@ const Users = () => {
     {
       title: "Status",
       dataIndex: "status",
-      render: (text) => (
-        <div>
-          {text === "Active" && (
-            <span className="badge badge-linesuccess">{text}</span>
-          )}
-          {text === "Inactive" && (
-            <span className="badge badge-linedanger">{text}</span>
-          )}
-        </div>
-      ),
+      render: (text) =>
+        text === "Active" ? (
+          <span className="modern-crud-badge is-ok">{text}</span>
+        ) : (
+          <span className="modern-crud-badge is-warn">{text}</span>
+        ),
       sorter: (a, b) => a.status.localeCompare(b.status),
     },
     {
       title: "Actions",
-      dataIndex: "actions",
-      key: "actions",
+      width: 140,
       render: (_, record) => (
-        <div className="edit-delete-action">
+        <div className="modern-crud-actions">
           <Link
-            className="me-2 p-2"
-            to="#"
-            onClick={(event) => {
-              event.preventDefault();
-              setEditingUser(record.raw);
-            }}
+            to={`${all_routes.users}/${record.id}`}
+            className="modern-crud-icon-btn"
+            title="View details"
           >
-            <i data-feather="edit" className="feather-edit"></i>
+            <Eye size={15} />
           </Link>
-          <Link
-            className="confirm-text p-2"
-            to="#"
-            onClick={(event) => {
-              event.preventDefault();
-              handleDelete(record.raw);
-            }}
+          <button
+            type="button"
+            className="modern-crud-icon-btn"
+            onClick={() => setEditingUser(record.raw)}
+            title="Edit"
           >
-            <i data-feather="trash-2" className="feather-trash-2"></i>
-          </Link>
+            <Edit size={15} />
+          </button>
+          <button
+            type="button"
+            className="modern-crud-icon-btn is-danger"
+            onClick={() => handleDelete(record.raw)}
+            title="Delete"
+          >
+            <Trash2 size={15} />
+          </button>
         </div>
       ),
     },
   ];
 
-  const renderTooltip = (label) => {
-    const TooltipContent = (props) => (
-      <Tooltip id={`${label}-tooltip`} {...props}>
-        {label}
-      </Tooltip>
-    );
-    TooltipContent.displayName = `TooltipContent(${label})`;
-    return TooltipContent;
-  };
+  const filterTabs = [
+    { key: "all", label: "All", count: tabCounts.all },
+    { key: "active", label: "Active", count: tabCounts.active, tone: "ok" },
+    { key: "inactive", label: "Inactive", count: tabCounts.inactive, tone: "warn" },
+  ];
 
   return (
-    <div>
-      <div className="page-wrapper">
-        <div className="content">
-          <div className="page-header">
-            <div className="add-item d-flex">
-              <div className="page-title">
-                <h4>User List</h4>
-                <h6>Manage Your Users</h6>
-              </div>
-            </div>
-            <ul className="table-top-head">
-              <li>
-                <OverlayTrigger placement="top" overlay={renderTooltip("Refresh")}>
-                  <Link
-                    to="#"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      dispatch(fetchAllUsersAction());
-                    }}
-                  >
-                    <RotateCcw />
-                  </Link>
-                </OverlayTrigger>
-              </li>
-              <li>
-                <OverlayTrigger placement="top" overlay={renderTooltip("Collapse")}>
-                  <Link
-                    to="#"
-                    id="collapse-header"
-                    className={data ? "active" : ""}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      dispatch(setToogleHeader(!data));
-                    }}
-                  >
-                    <ChevronUp />
-                  </Link>
-                </OverlayTrigger>
-              </li>
-            </ul>
-            <div className="page-btn">
-              <button
-                type="button"
-                className="btn btn-added"
-                data-bs-toggle="modal"
-                data-bs-target="#add-units"
-              >
-                <PlusCircle className="me-2" />
-                Add New User
-              </button>
-            </div>
-          </div>
-
-          <div className="card table-list-card">
-            <div className="card-body">
-              <div className="table-top">
-                <div className="search-set">
-                  <div className="search-input">
-                    <input
-                      type="text"
-                      placeholder="Search users"
-                      className="form-control form-control-sm formsearch"
-                      value={searchText}
-                      onChange={(event) => setSearchText(event.target.value)}
-                    />
-                    <Link to="#" className="btn btn-searchset">
-                      <i data-feather="search" className="feather-search" />
-                    </Link>
-                  </div>
-                </div>
-                <div className="search-path">
-                  <Link
-                    className={`btn btn-filter ${isFilterVisible ? "setclose" : ""}`}
-                    to="#"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      toggleFilterVisibility();
-                    }}
-                  >
-                    <Filter className="filter-icon" />
-                    <span onClick={toggleFilterVisibility}>
-                      <ImageWithBasePath src="assets/img/icons/closes.svg" alt="img" />
-                    </span>
-                  </Link>
-                </div>
-              </div>
-
-              <div
-                className={`card${isFilterVisible ? " visible" : ""}`}
-                id="filter_inputs"
-                style={{ display: isFilterVisible ? "block" : "none" }}
-              >
-                <div className="card-body pb-0">
-                  <div className="row">
-                    <div className="col-lg-4 col-sm-6 col-12">
-                      <div className="input-blocks">
-                        <StopCircle className="info-img" />
-                        <Select
-                          className="select"
-                          options={statusFilterOptions}
-                          value={filterStatus}
-                          onChange={setFilterStatus}
-                          placeholder="Choose Status"
-                          isClearable
-                        />
-                      </div>
-                    </div>
-                    <div className="col-lg-4 col-sm-6 col-12">
-                      <div className="input-blocks">
-                        <Zap className="info-img" />
-                        <Select
-                          className="select"
-                          options={roleFilterOptions}
-                          value={filterRole}
-                          onChange={setFilterRole}
-                          placeholder="Choose Role"
-                          isClearable
-                        />
-                      </div>
-                    </div>
-                    <div className="col-lg-4 col-sm-6 col-12">
-                      <div className="input-blocks">
-                        <button
-                          type="button"
-                          className="btn btn-filters ms-auto"
-                          onClick={() => {
-                            setFilterStatus(null);
-                            setFilterRole(null);
-                            setSearchText("");
-                          }}
-                        >
-                          <User className="me-2" size={16} />
-                          Clear Filters
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="table-responsive">
-                {loading && !tableData.length ? (
-                  <div className="text-center py-4">Loading users...</div>
-                ) : (
-                  <Table columns={columns} dataSource={tableData} />
-                )}
-              </div>
-            </div>
-          </div>
+    <>
+      <ModernCrudShell
+        title="Users"
+        subtitle="Manage your users."
+        icon={<UsersIcon size={18} />}
+        addLabel="Add User"
+        onAdd={() => setShowAdd(true)}
+      >
+        <CrudListToolbar
+          search={searchText}
+          onSearchChange={setSearchText}
+          searchPlaceholder="Search"
+          totalRecords={tableData.length}
+          filterLabel="Role"
+          filterValue={roleFilter}
+          onFilterChange={setRoleFilter}
+          filterOptions={roleFilterOptions}
+          showFiltersButton
+          filtersOpen={filtersOpen}
+          onToggleFilters={() => setFiltersOpen((v) => !v)}
+          stockFilterValue={activeTab}
+          onStockFilterChange={setActiveTab}
+          stockFilterOptions={filterTabs.map((t) => ({
+            value: t.key,
+            label: t.label,
+            count: t.count,
+            tone: t.tone,
+          }))}
+          tabs={filterTabs}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
+        <div className="modern-crud-table">
+          <Table
+            columns={columns}
+            dataSource={tableData}
+            loading={loading}
+            pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: ["10", "20", "50"] }}
+            locale={{ emptyText: loading ? "Loading..." : "No users found" }}
+          />
         </div>
-      </div>
+      </ModernCrudShell>
 
-      <AddUsers />
+      <AddUsers show={showAdd} onClose={() => setShowAdd(false)} />
       <EditUser user={editingUser} onClose={() => setEditingUser(null)} />
-    </div>
+    </>
   );
 };
 

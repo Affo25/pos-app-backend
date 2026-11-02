@@ -1,7 +1,12 @@
 const mongoose = require('mongoose');
 const Products = require('../models/Products');
 const Category = require('../models/Category');
-const XLSX = require('xlsx');
+const { resolveAdminId } = require('../utils/resolveAdminId');
+const {
+  parseExcelDate,
+  sheetRowsFromBuffer,
+  sendExcel,
+} = require('../utils/excelHelpers');
 
 function normalizeCategoryId(raw) {
   if (raw == null || raw === '') return null;
@@ -14,8 +19,10 @@ function normalizeCategoryId(raw) {
 
 exports.createProducts = async (req, res) => {
   try {
-    const adminId =
-      req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
+    if (!adminId) {
+      return res.status(400).json({ error: 'Could not resolve admin_id for this user' });
+    }
 
     const categoryId = normalizeCategoryId(req.body.category);
     if (!categoryId) {
@@ -86,15 +93,22 @@ exports.createProducts = async (req, res) => {
 
 exports.getProductss = async (req, res) => {
   try {
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
-
-    const query = {
-      admin_id: adminId,
-    };
-
-    if (req.user.user_type === 'user') {
-      query.created_by = req.user.id;
+    const adminId = resolveAdminId(req.user);
+    if (!adminId) {
+      return res.status(400).json({ error: 'Could not resolve admin_id for this user' });
     }
+
+    // Include orphaned rows created before superAdmin admin_id fix
+    const query =
+      req.user.user_type === 'user'
+        ? { admin_id: adminId, created_by: req.user.id || req.user._id }
+        : {
+            $or: [
+              { admin_id: adminId },
+              { created_by: req.user._id, admin_id: null },
+              { created_by: req.user._id, admin_id: { $exists: false } },
+            ],
+          };
 
     const productss = await Products.find(query).populate('category', 'name');
     res.status(200).json(productss);
@@ -107,8 +121,8 @@ const checkProductAccess = async (id, user) => {
   const product = await Products.findById(id);
   if (!product) throw new Error('Product not found');
 
-  const loggedInAdminId = user.user_type === 'admin' ? user._id : user.admin_id;
-  if (product.admin_id.toString() !== loggedInAdminId.toString()) {
+  const loggedInAdminId = resolveAdminId(user);
+  if (!loggedInAdminId || product.admin_id.toString() !== loggedInAdminId.toString()) {
     throw new Error('Unauthorized access');
   }
 
@@ -139,7 +153,7 @@ exports.updateProducts = async (req, res) => {
     // ✅ Check product access permissions
     await checkProductAccess(id, req.user);
 
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
 
     // Find existing product
     const existingProduct = await Products.findById(id);
@@ -318,7 +332,7 @@ exports.deleteProducts = async (req, res) => {
 
 exports.getStockReport = async (req, res) => {
   try {
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
     const query = { admin_id: adminId };
     if (req.user.user_type === 'user') {
       query.created_by = req.user.id;
@@ -343,22 +357,39 @@ exports.getStockReport = async (req, res) => {
   }
 };
 
-const normalizeKey = (key) =>
-  String(key || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '_');
+exports.exportProductsToExcel = async (req, res) => {
+  try {
+    const adminId = resolveAdminId(req.user);
+    if (!adminId) return res.status(400).json({ error: 'Could not resolve admin_id for this user' });
 
-const parseExcelDate = (value) => {
-  if (!value) return null;
-  if (value instanceof Date) return value;
-  if (typeof value === 'number') {
-    const parsed = XLSX.SSF.parse_date_code(value);
-    if (!parsed) return null;
-    return new Date(parsed.y, parsed.m - 1, parsed.d);
+    const products = await Products.find({ admin_id: adminId }).populate('category', 'name').lean();
+    const rows = products.map((p) => ({
+      name: p.name || '',
+      sku: p.sku || '',
+      batch_number: p.batch_number || '',
+      expiry_date: p.expiry_date ? new Date(p.expiry_date).toISOString().slice(0, 10) : '',
+      available_quantity: p.available_quantity ?? 0,
+      minimum_stock_alert: p.minimum_stock_alert ?? 0,
+      unit_price: p.unit_price ?? 0,
+      supplier_name: p.supplier_name || '',
+      manufacturer: p.manufacturer || '',
+      category: p.category?.name || String(p.category || ''),
+      rack_location: p.rack_location || '',
+      discount: p.discount ?? 0,
+      gst: p.gst ?? 0,
+      status: p.status || 'active',
+      manufacturer_license_no: p.manufacturer_license_no || '',
+      manufacturer_registration_no: p.manufacturer_registration_no || '',
+      medicine_size: p.medicine_size || '',
+      storage_instructions: p.storage_instructions || '',
+      notes: p.notes || '',
+      is_prescription_required: Boolean(p.is_prescription_required),
+    }));
+
+    return sendExcel(res, rows, 'products-export.xlsx');
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
 };
 
 exports.importProductsFromExcel = async (req, res) => {
@@ -367,15 +398,12 @@ exports.importProductsFromExcel = async (req, res) => {
       return res.status(400).json({ error: 'Excel file is required' });
     }
 
-    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
-    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
-
+    const rows = sheetRowsFromBuffer(req.file.buffer);
     if (!rows.length) {
       return res.status(400).json({ error: 'Excel sheet is empty' });
     }
 
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
     const createdBy = req.user._id;
 
     const categoryDocs = await Category.find({ admin_id: adminId }).lean();
@@ -387,12 +415,7 @@ exports.importProductsFromExcel = async (req, res) => {
     const toCreate = [];
     let skipped = 0;
 
-    rows.forEach((rawRow) => {
-      const row = {};
-      Object.keys(rawRow).forEach((k) => {
-        row[normalizeKey(k)] = rawRow[k];
-      });
-
+    rows.forEach((row) => {
       const name = String(row.name || '').trim();
       const batch_number = String(row.batch_number || row.batch || '').trim();
       const expiry_date = parseExcelDate(row.expiry_date || row.expiry);
@@ -428,6 +451,7 @@ exports.importProductsFromExcel = async (req, res) => {
         return;
       }
 
+      const skuRaw = String(row.sku || '').trim();
       toCreate.push({
         name,
         batch_number,
@@ -445,7 +469,12 @@ exports.importProductsFromExcel = async (req, res) => {
         manufacturer_license_no: String(row.manufacturer_license_no || '').trim(),
         manufacturer_registration_no: String(row.manufacturer_registration_no || '').trim(),
         medicine_size: String(row.medicine_size || row.medecine_size || '').trim(),
-        sku: `SKU-${new mongoose.Types.ObjectId().toString()}`,
+        storage_instructions: String(row.storage_instructions || '').trim(),
+        notes: String(row.notes || '').trim(),
+        is_prescription_required: ['true', '1', 'yes', 'y'].includes(
+          String(row.is_prescription_required || '').trim().toLowerCase(),
+        ),
+        ...(skuRaw ? { sku: skuRaw } : { sku: `SKU-${new mongoose.Types.ObjectId().toString()}` }),
         admin_id: adminId,
         created_by: createdBy,
       });

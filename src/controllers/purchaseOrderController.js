@@ -320,3 +320,22 @@ exports.deletePurchaseOrder = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+exports.exportPurchaseOrdersToExcel = async (req, res) => {
+  try {
+    const { sendExcel } = require('../utils/excelHelpers');
+    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const orders = await PurchaseOrder.find({ admin_id: adminId }).lean();
+    const rows = orders.map((po) => ({
+      order_number: po.order_number || '',
+      supplier_name: po.supplier_name || '',
+      items_count: Array.isArray(po.items) ? po.items.length : 0,
+      total: po.net_total ?? po.order_total ?? po.total_amount ?? 0,
+      status: po.status || '',
+      order_date: po.order_date ? new Date(po.order_date).toISOString().slice(0, 10) : '',
+    }));
+    return sendExcel(res, rows, 'purchase-orders-export.xlsx');
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};

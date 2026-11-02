@@ -4,6 +4,7 @@ const {
     loginUser,
     logoutUser,
     getAllUsers,
+    getUserById,
     createUser,
     updateUser,
     deleteUser,
@@ -11,6 +12,7 @@ const {
     checkSubscriptionStatus,
     validateLicenseKey,
     getUserProfile,
+    setUserStatus,
     toggleUserBlock,
     updateLicenseStatus,
     getUserEmailPreview,
@@ -43,7 +45,9 @@ router.get('/:id/email-preview', protect, checkRole(['superAdmin', 'admin']), ge
 router.post('/:id/send-email', protect, checkRole(['superAdmin', 'admin']), sendUserEmail);
 router.get('/:id/whatsapp-preview', protect, checkRole(['superAdmin', 'admin']), getUserWhatsAppPreview);
 router.post('/:id/send-whatsapp', protect, checkRole(['superAdmin', 'admin']), sendUserWhatsApp);
-router.put('/:id', protect, checkRole(['superAdmin', 'admin']), updateUser); // Added protect here
+router.put('/:id/status', protect, checkRole(['superAdmin']), setUserStatus);
+router.get('/:id', protect, checkRole(['superAdmin', 'admin']), getUserById);
+router.put('/:id', protect, checkRole(['superAdmin', 'admin']), updateUser);
 router.delete('/:id', protect, checkRole(['superAdmin', 'admin']), deleteUser);
 
 // SuperAdmin/Admin user management routes

@@ -2,39 +2,51 @@ import { all, takeLatest, put, call } from "redux-saga/effects";
 import { toast } from "react-toastify";
 import * as customerService from "./customerService";
 import * as actions from "./customerSlice";
-
-function* handleApiCall(apiFn, ...args) {
-  try {
-    yield put(actions.operationStart());
-    const result = yield call(apiFn, ...args);
-    yield put(actions.operationSuccess());
-    return result;
-  } catch (error) {
-    yield put(actions.operationFailure(error.message));
-    toast.error(error.message);
-    throw error;
-  }
-}
+import { handleApiCall } from "../utils/sagaHelpers";
 
 function* fetchAllCustomers() {
-  const customers = yield handleApiCall(customerService.fetchAllCustomers);
-  yield put(actions.fetchCustomersSuccess(customers));
+  const { ok, result } = yield call(
+    handleApiCall,
+    actions,
+    customerService.fetchAllCustomers,
+  );
+  if (!ok) return;
+  yield put(actions.fetchCustomersSuccess(result));
 }
 
 function* createCustomer({ payload }) {
-  yield handleApiCall(customerService.createCustomer, payload);
+  const { ok } = yield call(
+    handleApiCall,
+    actions,
+    customerService.createCustomer,
+    payload,
+  );
+  if (!ok) return;
   toast.success("Customer created successfully");
   yield call(fetchAllCustomers);
 }
 
 function* updateCustomer({ payload: { id, data } }) {
-  yield handleApiCall(customerService.updateCustomer, id, data);
+  const { ok } = yield call(
+    handleApiCall,
+    actions,
+    customerService.updateCustomer,
+    id,
+    data,
+  );
+  if (!ok) return;
   yield call(fetchAllCustomers);
   toast.success("Customer updated successfully");
 }
 
 function* deleteCustomer({ payload: id }) {
-  yield handleApiCall(customerService.deleteCustomer, id);
+  const { ok } = yield call(
+    handleApiCall,
+    actions,
+    customerService.deleteCustomer,
+    id,
+  );
+  if (!ok) return;
   yield call(fetchAllCustomers);
   toast.success("Customer deleted successfully");
 }

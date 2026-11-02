@@ -4,10 +4,13 @@ const Customer = require('../models/Customer');
 const Return = require('../models/Return');
 const { recordPaymentFromOrder, syncPaymentsReferenceForOrder } = require('../utils/paymentHelpers');
 const { generateSaleInvoiceNo } = require('../utils/saleHelpers');
+const { sendExcel } = require('../utils/excelHelpers');
+const { resolveAdminId } = require('../utils/resolveAdminId');
 
 exports.getNextInvoiceNumber = async (req, res) => {
   try {
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
+    if (!adminId) return res.status(400).json({ error: 'Could not resolve admin_id for this user' });
     const saleDate = req.query.sale_date ? new Date(req.query.sale_date) : new Date();
     const invoice_no = await generateSaleInvoiceNo(adminId, saleDate);
     res.status(200).json({ invoice_no });
@@ -18,8 +21,10 @@ exports.getNextInvoiceNumber = async (req, res) => {
 
 exports.createSale = async (req, res) => {
   try {
-     const adminId =
-      req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
+    if (!adminId) {
+      return res.status(400).json({ error: 'Could not resolve admin_id for this user' });
+    }
     const data = {
       ...req.body,
       admin_id: adminId,
@@ -38,8 +43,35 @@ exports.createSale = async (req, res) => {
       if (customer) data.customer_name = customer.name;
     }
 
+    const items = Array.isArray(data.items) ? data.items : [];
+    for (const item of items) {
+      const product = await Products.findById(item.product_id);
+      if (!product) {
+        return res.status(404).json({ error: `Product not found: ${item.product_id}` });
+      }
+      const quantity = Number(item.quantity || 0);
+      if (quantity <= 0) {
+        return res.status(400).json({ error: `Invalid quantity for ${product.name}` });
+      }
+      if (Number(product.available_quantity || 0) < quantity) {
+        return res.status(400).json({
+          error: `Insufficient stock for ${product.name}. Available: ${product.available_quantity}`,
+        });
+      }
+    }
+
     const newSale = new Sale(data);
     await newSale.save();
+
+    for (const item of items) {
+      const product = await Products.findById(item.product_id);
+      if (product) {
+        const quantity = Number(item.quantity || 0);
+        product.available_quantity = Math.max(0, Number(product.available_quantity || 0) - quantity);
+        product.total_value = product.available_quantity * Number(product.unit_price || 0);
+        await product.save();
+      }
+    }
 
     const amountReceived = Math.max(
       0,
@@ -81,7 +113,10 @@ exports.createSale = async (req, res) => {
 
 exports.getSales = async (req, res) => {
   try {
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
+    if (!adminId) {
+      return res.status(400).json({ error: 'Could not resolve admin_id for this user' });
+    }
 
     const query = {
       admin_id: adminId,
@@ -126,10 +161,10 @@ exports.getSales = async (req, res) => {
 
 const checkFacultyAccess = async (id, user) => {
   const faculty = await Sale.findById(id);
-  if (!faculty) throw new Error('Faculty not found');
+  if (!faculty) throw new Error('Sale not found');
 
-  const loggedInAdminId = user.user_type === 'admin' ? user._id : user.admin_id;
-  if (faculty.admin_id.toString() !== loggedInAdminId.toString()) {
+  const loggedInAdminId = resolveAdminId(user);
+  if (!loggedInAdminId || faculty.admin_id.toString() !== loggedInAdminId.toString()) {
     throw new Error('Unauthorized access');
   }
 
@@ -157,6 +192,25 @@ exports.deleteSale = async (req, res) => {
   }
 };
 
+exports.exportSalesToExcel = async (req, res) => {
+  try {
+    const adminId = resolveAdminId(req.user);
+    if (!adminId) return res.status(400).json({ error: 'Could not resolve admin_id for this user' });
+    const sales = await Sale.find({ admin_id: adminId }).lean();
+    const rows = sales.map((s) => ({
+      invoice_no: s.invoice_no || '',
+      customer_name: s.customer_name || 'Walk-in',
+      items_count: Array.isArray(s.items) ? s.items.length : 0,
+      net_amount: s.net_amount ?? 0,
+      status: s.status || '',
+      sale_date: s.sale_date ? new Date(s.sale_date).toISOString() : '',
+    }));
+    return sendExcel(res, rows, 'sales-export.xlsx');
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
 exports.createBilling = async (req, res) => {
   try {
     const {
@@ -175,7 +229,10 @@ exports.createBilling = async (req, res) => {
       return res.status(400).json({ error: 'At least one billing item is required' });
     }
 
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
+    if (!adminId) {
+      return res.status(400).json({ error: 'Could not resolve admin_id for this user' });
+    }
 
     let customerName = 'Walk-in Customer';
     if (customer_id) {
@@ -300,8 +357,8 @@ exports.getInvoiceById = async (req, res) => {
     const sale = await Sale.findById(req.params.id).lean();
     if (!sale) return res.status(404).json({ error: 'Invoice not found' });
 
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
-    if (sale.admin_id.toString() !== adminId.toString()) {
+    const adminId = resolveAdminId(req.user);
+    if (!adminId || sale.admin_id.toString() !== adminId.toString()) {
       return res.status(403).json({ error: 'Unauthorized access' });
     }
 

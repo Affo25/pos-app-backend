@@ -7,6 +7,7 @@ const Customer = require('../models/Customer');
 const User = require('../models/User');
 const PurchaseOrder = require('../models/PurchaseOrder');
 const Supplier = require('../models/Supplier');
+const { resolveAdminId } = require('../utils/resolveAdminId');
 
 // Helper function to get date ranges
 const getDateRanges = () => {
@@ -35,7 +36,10 @@ const calculatePercentageChange = (current, previous) => {
 // Main Dashboard API
 exports.getDashboardData = async (req, res) => {
   try {
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
+    if (!adminId) {
+      return res.status(400).json({ success: false, error: 'Could not resolve admin_id' });
+    }
     const { startDate: qStart, endDate: qEnd } = req.query;
     const { startOfToday, startOfMonth, endOfMonth, lastMonth, lastMonthEnd } = getDateRanges();
 
@@ -375,8 +379,20 @@ exports.getDashboardData = async (req, res) => {
         }),
         lowStockItems: await Products.countDocuments({
           admin_id: adminId,
-          $expr: { $lte: ['$available_quantity', '$min_stock_level'] }
-        })
+          $expr: {
+            $lte: [
+              '$available_quantity',
+              { $ifNull: ['$minimum_stock_alert', 0] },
+            ],
+          },
+        }),
+        previousPeriodSales: previousPeriodSales,
+        periodSalesCount: monthSales[0]?.count || 0,
+        purchaseTotalRaw: purchasesData[0]?.total || 0,
+        outOfStock: await Products.countDocuments({
+          admin_id: adminId,
+          available_quantity: { $lte: 0 },
+        }),
       }
     };
     
@@ -397,7 +413,7 @@ exports.getDashboardData = async (req, res) => {
 // Get Sales Overview with filters
 exports.getSalesOverview = async (req, res) => {
   try {
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
     const { period = 'week', startDate, endDate } = req.query;
     
     let dateFilter = {};
@@ -481,7 +497,7 @@ exports.getSalesOverview = async (req, res) => {
 // Get Top Selling Products
 exports.getTopProducts = async (req, res) => {
   try {
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
     const { limit = 10, startDate, endDate } = req.query;
 
     const match = { admin_id: adminId, status: 'completed' };
@@ -521,7 +537,7 @@ exports.getTopProducts = async (req, res) => {
 // Get Recent Activities
 exports.getRecentActivities = async (req, res) => {
   try {
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
     const { limit = 10 } = req.query;
     
     const [recentSales, recentProducts, recentCustomers] = await Promise.all([

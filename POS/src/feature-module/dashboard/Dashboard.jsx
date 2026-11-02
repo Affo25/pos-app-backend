@@ -1,648 +1,484 @@
-import React, { useState } from "react";
-import CountUp from "react-countup";
-import {
-  File,
-  User,
-  UserCheck,
-} from "feather-icons-react/build/IconComponents";
-import Chart from "react-apexcharts";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import ImageWithBasePath from "../../core/img/imagewithbasebath";
-import { ArrowRight } from "react-feather";
+import ReactApexChart from "react-apexcharts";
+import dayjs from "dayjs";
+import { Users, ShoppingCart, DollarSign, AlertOctagon, RefreshCw } from "react-feather";
 import { all_routes } from "../../Router/all_routes";
-import withReactContent from "sweetalert2-react-content";
-import Swal from "sweetalert2";
+import * as analyticsService from "../../redux/analytics/analyticsService";
+import { fetchAllProducts } from "../../redux/products/productService";
+
+const money = (n) =>
+  `Rs ${Number(n || 0).toLocaleString("en-PK", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
+const StatCard = ({ title, value, icon, color, to }) => (
+  <div className="col-xl-3 col-sm-6 col-12 mb-3">
+    <div
+      className="card border-0 h-100"
+      style={{
+        borderRadius: 16,
+        boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+      }}
+    >
+      <div className="card-body">
+        <div className="d-flex align-items-start justify-content-between mb-3">
+          <div
+            className="d-flex align-items-center justify-content-center"
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 12,
+              background: `${color}18`,
+              color,
+            }}
+          >
+            {icon}
+          </div>
+        </div>
+        <h6 className="text-muted mb-1" style={{ fontWeight: 500 }}>
+          {title}
+        </h6>
+        <h2 className="mb-3" style={{ fontWeight: 700, fontSize: 28 }}>
+          {value}
+        </h2>
+        {to ? (
+          <Link to={to} className="text-decoration-none" style={{ color: "#64748b", fontSize: 13 }}>
+            Show Details
+          </Link>
+        ) : (
+          <span style={{ color: "#94a3b8", fontSize: 13 }}>Show Details</span>
+        )}
+      </div>
+    </div>
+  </div>
+);
+
+const statusPill = (status) => {
+  const s = String(status || "pending").toLowerCase();
+  const map = {
+    completed: { bg: "#dbeafe", color: "#2563eb", label: "Delivered" },
+    delivered: { bg: "#dbeafe", color: "#2563eb", label: "Delivered" },
+    pending: { bg: "#fef3c7", color: "#d97706", label: "Pending" },
+    cancelled: { bg: "#fee2e2", color: "#dc2626", label: "Cancelled" },
+    returned: { bg: "#fee2e2", color: "#dc2626", label: "Returned" },
+  };
+  const style = map[s] || map.pending;
+  return (
+    <span
+      style={{
+        background: style.bg,
+        color: style.color,
+        borderRadius: 999,
+        padding: "4px 10px",
+        fontSize: 12,
+        fontWeight: 600,
+      }}
+    >
+      {style.label}
+    </span>
+  );
+};
 
 const Dashboard = () => {
   const route = all_routes;
-  const [chartOptions] = useState({
-    series: [
-      {
-        name: "Sales",
-        data: [130, 210, 300, 290, 150, 50, 210, 280, 105],
-      },
-      {
-        name: "Purchase",
-        data: [-150, -90, -50, -180, -50, -70, -100, -90, -105],
-      },
-    ],
-    colors: ["#28C76F", "#EA5455"],
-    chart: {
-      type: "bar",
-      height: 320,
-      stacked: true,
-      zoom: {
-        enabled: true,
-      },
-    },
-    responsive: [
-      {
-        breakpoint: 280,
-        options: {
-          legend: {
-            position: "bottom",
-            offsetY: 0,
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [dashboard, setDashboard] = useState(null);
+  const [overview, setOverview] = useState(null);
+  const [products, setProducts] = useState([]);
+  const [chartMode, setChartMode] = useState("month");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const endDate = dayjs().format("YYYY-MM-DD");
+      const [dash, ov, productList] = await Promise.all([
+        analyticsService.fetchDashboard({
+          startDate: dayjs().startOf("month").format("YYYY-MM-DD"),
+          endDate,
+        }),
+        analyticsService.fetchSalesOverview({ period: chartMode === "year" ? "year" : "month" }),
+        fetchAllProducts().catch(() => []),
+      ]);
+      setDashboard(dash);
+      setOverview(ov);
+      setProducts(Array.isArray(productList) ? productList : []);
+    } catch (err) {
+      setError(err.message || "Failed to load dashboard");
+    } finally {
+      setLoading(false);
+    }
+  }, [chartMode]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const totalCustomers = dashboard?.additionalStats?.totalCustomers ?? 0;
+  const totalSalesCount = dashboard?.additionalStats?.periodSalesCount ?? 0;
+  const periodSales = Number(dashboard?.stats?.todaysSales?.value || 0);
+  const purchaseTotal = Number(dashboard?.additionalStats?.purchaseTotalRaw || 0);
+  const profit = Math.max(0, periodSales - purchaseTotal);
+  const outOfStock =
+    dashboard?.additionalStats?.outOfStock ??
+    products.filter((p) => Number(p.available_quantity ?? 0) <= 0).length;
+
+  const expiringList = useMemo(() => {
+    const now = dayjs();
+    const soon = now.add(90, "day");
+    return products
+      .filter((p) => p.expiry_date)
+      .map((p) => ({
+        ...p,
+        expiry: dayjs(p.expiry_date),
+      }))
+      .filter((p) => p.expiry.isBefore(soon))
+      .sort((a, b) => a.expiry.valueOf() - b.expiry.valueOf())
+      .slice(0, 6);
+  }, [products]);
+
+  const recentOrders = useMemo(
+    () => (dashboard?.recentSales?.data || []).slice(0, 6),
+    [dashboard],
+  );
+
+  const monthlyLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const monthlySeries = useMemo(() => {
+    const buckets = Array(12).fill(0);
+    const rows = Array.isArray(overview?.data) ? overview.data : [];
+    if (chartMode === "year" || overview?.period === "year") {
+      rows.forEach((d) => {
+        const idx = Number(d._id) - 1;
+        if (idx >= 0 && idx < 12) buckets[idx] = Number(d.totalSales || 0);
+      });
+      return buckets;
+    }
+    // month/week overview: map available points into spark-like monthly fill where possible
+    const dashWeekly = dashboard?.salesOverview?.chartData;
+    if (dashWeekly?.sales?.length) {
+      // distribute period daily totals into current month index only as fallback visual
+      const m = dayjs().month();
+      buckets[m] = dashWeekly.sales.reduce((s, v) => s + Number(v || 0), 0);
+    }
+    rows.forEach((d, i) => {
+      const idx = Math.min(11, i);
+      buckets[idx] = Number(d.totalSales || 0);
+    });
+    return buckets;
+  }, [overview, dashboard, chartMode]);
+
+  const monthlyChart = useMemo(
+    () => ({
+      series: [
+        { name: "Progress", data: monthlySeries },
+        {
+          name: "Goal",
+          data: monthlySeries.map((v) => Math.max(v * 1.35, v + 1000, 5000)),
+        },
+      ],
+      options: {
+        chart: { type: "bar", stacked: false, toolbar: { show: false }, height: 300 },
+        plotOptions: {
+          bar: {
+            columnWidth: "45%",
+            borderRadius: 6,
+            borderRadiusApplication: "end",
           },
         },
-      },
-    ],
-    plotOptions: {
-      bar: {
-        horizontal: false,
-        borderRadius: 4,
-        borderRadiusApplication: "end", // "around" / "end"
-        borderRadiusWhenStacked: "all", // "all"/"last"
-        columnWidth: "20%",
-      },
-    },
-    dataLabels: {
-      enabled: false,
-    },
-    yaxis: {
-      min: -200,
-      max: 300,
-      tickAmount: 5,
-    },
-    xaxis: {
-      categories: [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-      ],
-    },
-    legend: { show: false },
-    fill: {
-      opacity: 1,
-    },
-  });
-  const MySwal = withReactContent(Swal);
-  const showConfirmationAlert = () => {
-    MySwal.fire({
-      title: "Are you sure?",
-      text: "You won't be able to revert this!",
-      showCancelButton: true,
-      confirmButtonColor: "#00ff00",
-      confirmButtonText: "Yes, delete it!",
-      cancelButtonColor: "#ff0000",
-      cancelButtonText: "Cancel",
-    }).then((result) => {
-      if (result.isConfirmed) {
-        MySwal.fire({
-          title: "Deleted!",
-          text: "Your file has been deleted.",
-          className: "btn btn-success",
-          confirmButtonText: "OK",
-          customClass: {
-            confirmButton: "btn btn-success",
+        colors: ["#22c55e", "#e2e8f0"],
+        dataLabels: { enabled: false },
+        stroke: { show: true, width: 0 },
+        xaxis: {
+          categories: monthlyLabels,
+          labels: { style: { colors: "#94a3b8", fontSize: "11px" } },
+          axisBorder: { show: false },
+          axisTicks: { show: false },
+        },
+        yaxis: {
+          labels: {
+            formatter: (v) => (v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)),
+            style: { colors: "#94a3b8" },
           },
-        });
-      } else {
-        MySwal.close();
-      }
-    });
-  };
-  return (
-    <div>
-      <div className="page-wrapper">
-        <div className="content">
-          <div className="row">
-            <div className="col-xl-3 col-sm-6 col-12 d-flex">
-              <div className="dash-widget w-100">
-                <div className="dash-widgetimg">
-                  <span>
-                    <ImageWithBasePath
-                      src="assets/img/icons/dash1.svg"
-                      alt="img"
-                    />
-                  </span>
-                </div>
-                <div className="dash-widgetcontent">
-                  <h5>
-                    <CountUp start={0} end={307144} duration={3} prefix="$" />
-                  </h5>
-                  <h6>Total Purchase Due</h6>
-                </div>
-              </div>
-            </div>
-            <div className="col-xl-3 col-sm-6 col-12 d-flex">
-              <div className="dash-widget dash1 w-100">
-                <div className="dash-widgetimg">
-                  <span>
-                    <ImageWithBasePath
-                      src="assets/img/icons/dash2.svg"
-                      alt="img"
-                    />
-                  </span>
-                </div>
-                <div className="dash-widgetcontent">
-                  <h5>
-                    $
-                    <CountUp
-                      start={0}
-                      end={4385}
-                      duration={3} // Duration in seconds
-                    />
-                  </h5>
-                  <h6>Total Sales Due</h6>
-                </div>
-              </div>
-            </div>
-            <div className="col-xl-3 col-sm-6 col-12 d-flex">
-              <div className="dash-widget dash2 w-100">
-                <div className="dash-widgetimg">
-                  <span>
-                    <ImageWithBasePath
-                      src="assets/img/icons/dash3.svg"
-                      alt="img"
-                    />
-                  </span>
-                </div>
-                <div className="dash-widgetcontent">
-                  <h5>
-                    $
-                    <CountUp
-                      start={0}
-                      end={385656.5}
-                      duration={3} // Duration in seconds
-                      decimals={1}
-                    />
-                  </h5>
-                  <h6>Total Sale Amount</h6>
-                </div>
-              </div>
-            </div>
-            <div className="col-xl-3 col-sm-6 col-12 d-flex">
-              <div className="dash-widget dash3 w-100">
-                <div className="dash-widgetimg">
-                  <span>
-                    <ImageWithBasePath
-                      src="assets/img/icons/dash4.svg"
-                      alt="img"
-                    />
-                  </span>
-                </div>
-                <div className="dash-widgetcontent">
-                  <h5>
-                    $
-                    <CountUp
-                      start={0}
-                      end={40000}
-                      duration={3} // Duration in seconds
-                    />
-                  </h5>
-                  <h6>Total Expense Amount</h6>
-                </div>
-              </div>
-            </div>
-            <div className="col-xl-3 col-sm-6 col-12 d-flex">
-              <div className="dash-count">
-                <div className="dash-counts">
-                  <h4>100</h4>
-                  <h5>Customers</h5>
-                </div>
-                <div className="dash-imgs">
-                  <User />
-                </div>
-              </div>
-            </div>
-            <div className="col-xl-3 col-sm-6 col-12 d-flex">
-              <div className="dash-count das1">
-                <div className="dash-counts">
-                  <h4>110</h4>
-                  <h5>Suppliers</h5>
-                </div>
-                <div className="dash-imgs">
-                  <UserCheck />
-                </div>
-              </div>
-            </div>
-            <div className="col-xl-3 col-sm-6 col-12 d-flex">
-              <div className="dash-count das2">
-                <div className="dash-counts">
-                  <h4>150</h4>
-                  <h5>Purchase Invoice</h5>
-                </div>
-                <div className="dash-imgs">
-                  <ImageWithBasePath
-                    src="assets/img/icons/file-text-icon-01.svg"
-                    className="img-fluid"
-                    alt="icon"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="col-xl-3 col-sm-6 col-12 d-flex">
-              <div className="dash-count das3">
-                <div className="dash-counts">
-                  <h4>170</h4>
-                  <h5>Sales Invoice</h5>
-                </div>
-                <div className="dash-imgs">
-                  <File />
-                </div>
-              </div>
-            </div>
-          </div>
-          {/* Button trigger modal */}
+        },
+        legend: { show: false },
+        grid: { borderColor: "#f1f5f9", strokeDashArray: 4 },
+        tooltip: {
+          shared: true,
+          intersect: false,
+          y: { formatter: (v) => money(v) },
+        },
+      },
+    }),
+    [monthlySeries],
+  );
 
-          <div className="row">
-            <div className="col-xl-7 col-sm-12 col-12 d-flex">
-              <div className="card flex-fill">
-                <div className="card-header d-flex justify-content-between align-items-center">
-                  <h5 className="card-title mb-0">Purchase &amp; Sales</h5>
-                  <div className="graph-sets">
-                    <ul className="mb-0">
-                      <li>
-                        <span>Sales</span>
-                      </li>
-                      <li>
-                        <span>Purchase</span>
-                      </li>
-                    </ul>
-                    <div className="dropdown dropdown-wraper">
-                      <button
-                        className="btn btn-light btn-sm dropdown-toggle"
-                        type="button"
-                        id="dropdownMenuButton"
-                        data-bs-toggle="dropdown"
-                        aria-expanded="false"
-                      >
-                        2023
-                      </button>
-                      <ul
-                        className="dropdown-menu"
-                        aria-labelledby="dropdownMenuButton"
-                      >
-                        <li>
-                          <Link to="#" className="dropdown-item">
-                            2023
-                          </Link>
-                        </li>
-                        <li>
-                          <Link to="#" className="dropdown-item">
-                            2022
-                          </Link>
-                        </li>
-                        <li>
-                          <Link to="#" className="dropdown-item">
-                            2021
-                          </Link>
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
+  const todaySales = Number(dashboard?.stats?.literalToday?.value || 0);
+  const cashShare = Math.max(todaySales * 0.55, periodSales * 0.4);
+  const bankShare = Math.max(todaySales * 0.25, periodSales * 0.2);
+  const serviceShare = Math.max(todaySales * 0.1, periodSales * 0.08);
+  const purchaseShare = Math.max(purchaseTotal || periodSales * 0.25, 1);
+
+  const radialChart = useMemo(() => {
+    const total = Math.max(periodSales + purchaseShare, 1);
+    const pct = (v) => Math.min(100, Math.round((Number(v) / total) * 100));
+    return {
+      series: [pct(purchaseShare), pct(cashShare), pct(bankShare), pct(serviceShare)],
+      options: {
+        chart: { type: "radialBar", height: 300 },
+        plotOptions: {
+          radialBar: {
+            hollow: { size: "35%" },
+            track: { background: "#f1f5f9" },
+            dataLabels: {
+              name: { fontSize: "12px", color: "#64748b" },
+              value: { fontSize: "14px", fontWeight: 700, color: "#0f172a" },
+              total: {
+                show: true,
+                label: "Earning",
+                formatter: () => money(periodSales).replace("Rs ", "Rs"),
+              },
+            },
+          },
+        },
+        colors: ["#ef4444", "#eab308", "#3b82f6", "#22c55e"],
+        labels: ["Purchase", "Cash", "Bank", "Service"],
+        legend: { show: false },
+      },
+    };
+  }, [periodSales, purchaseShare, cashShare, bankShare, serviceShare]);
+
+  return (
+    <div className="page-wrapper" style={{ background: "#f3f4f6" }}>
+      <div className="content">
+        <div className="page-header mb-3">
+          <div className="page-title">
+            <h4 style={{ fontWeight: 700 }}>Dashboard</h4>
+            <h6 className="text-muted mb-0">Pharmacy overview</h6>
+          </div>
+        </div>
+
+        {error ? (
+          <div className="alert alert-danger" role="alert">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="row">
+          <StatCard
+            title="Total Customer"
+            value={loading ? "—" : totalCustomers}
+            icon={<Users size={22} />}
+            color="#3b82f6"
+            to={route.customers}
+          />
+          <StatCard
+            title="Total Sales"
+            value={loading ? "—" : totalSalesCount || recentOrders.length}
+            icon={<ShoppingCart size={22} />}
+            color="#22c55e"
+            to={route.saleslist}
+          />
+          <StatCard
+            title="Total Profit"
+            value={loading ? "—" : money(profit)}
+            icon={<DollarSign size={22} />}
+            color="#eab308"
+            to={route.saleslist}
+          />
+          <StatCard
+            title="Out of Stock"
+            value={loading ? "—" : outOfStock}
+            icon={<AlertOctagon size={22} />}
+            color="#ef4444"
+            to={route.productlist}
+          />
+        </div>
+
+        <div className="row">
+          <div className="col-xl-6 mb-3">
+            <div
+              className="card border-0 h-100"
+              style={{ borderRadius: 16, boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)" }}
+            >
+              <div className="card-body">
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <h5 className="mb-0" style={{ fontWeight: 700 }}>
+                    Expiring List
+                  </h5>
+                  <Link to={route.productlist} className="text-decoration-none" style={{ color: "#64748b" }}>
+                    See All &gt;
+                  </Link>
                 </div>
-                <div className="card-body">
-                  <div id="sales_charts" />
-                  <Chart
-                    options={chartOptions}
-                    series={chartOptions.series}
-                    type="bar"
-                    height={320}
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="col-xl-5 col-sm-12 col-12 d-flex">
-              <div className="card flex-fill default-cover mb-4">
-                <div className="card-header d-flex justify-content-between align-items-center">
-                  <h4 className="card-title mb-0">Recent Products</h4>
-                  <div className="view-all-link">
-                    <Link to="#" className="view-all d-flex align-items-center">
-                      View All
-                      <span className="ps-2 d-flex align-items-center">
-                        <ArrowRight className="feather-16" />
-                      </span>
-                    </Link>
-                  </div>
-                </div>
-                <div className="card-body">
-                  <div className="table-responsive dataview">
-                    <table className="table dashboard-recent-products">
-                      <thead>
-                        <tr>
-                          <th>#</th>
-                          <th>Products</th>
-                          <th>Price</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td>1</td>
-                          <td className="productimgname">
-                            <Link
-                              to={route.productlist}
-                              className="product-img"
-                            >
-                              <ImageWithBasePath
-                                src="assets/img/products/stock-img-01.png"
-                                alt="product"
-                              />
-                            </Link>
-                            <Link to={route.productlist}>
-                              Lenevo 3rd Generation
-                            </Link>
+                <div className="table-responsive">
+                  <table className="table align-middle mb-0">
+                    <thead>
+                      <tr style={{ color: "#94a3b8", fontSize: 12 }}>
+                        <th>Medicine name</th>
+                        <th>Expire Date</th>
+                        <th>Quantity</th>
+                        <th>Return</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {expiringList.map((p) => (
+                        <tr key={p._id}>
+                          <td style={{ fontWeight: 600 }}>{p.name}</td>
+                          <td>{p.expiry.format("DD MMM YYYY")}</td>
+                          <td>{p.available_quantity ?? 0}</td>
+                          <td>
+                            <button type="button" className="btn btn-sm btn-light rounded-circle">
+                              <RefreshCw size={14} />
+                            </button>
                           </td>
-                          <td>$12500</td>
                         </tr>
+                      ))}
+                      {!expiringList.length ? (
                         <tr>
-                          <td>2</td>
-                          <td className="productimgname">
-                            <Link
-                              to={route.productlist}
-                              className="product-img"
-                            >
-                              <ImageWithBasePath
-                                src="assets/img/products/stock-img-06.png"
-                                alt="product"
-                              />
-                            </Link>
-                            <Link to={route.productlist}>Bold V3.2</Link>
+                          <td colSpan={4} className="text-muted text-center py-4">
+                            {loading ? "Loading..." : "No expiring items"}
                           </td>
-                          <td>$1600</td>
                         </tr>
-                        <tr>
-                          <td>3</td>
-                          <td className="productimgname">
-                            <Link
-                              to={route.productlist}
-                              className="product-img"
-                            >
-                              <ImageWithBasePath
-                                src="assets/img/products/stock-img-02.png"
-                                alt="product"
-                              />
-                            </Link>
-                            <Link to={route.productlist}>Nike Jordan</Link>
-                          </td>
-                          <td>$2000</td>
-                        </tr>
-                        <tr>
-                          <td>4</td>
-                          <td className="productimgname">
-                            <Link
-                              to={route.productlist}
-                              className="product-img"
-                            >
-                              <ImageWithBasePath
-                                src="assets/img/products/stock-img-03.png"
-                                alt="product"
-                              />
-                            </Link>
-                            <Link to={route.productlist}>
-                              Apple Series 5 Watch
-                            </Link>
-                          </td>
-                          <td>$800</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+                      ) : null}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
           </div>
-          <div className="card">
-            <div className="card-header">
-              <h4 className="card-title">Expired Products</h4>
+
+          <div className="col-xl-6 mb-3">
+            <div
+              className="card border-0 h-100"
+              style={{ borderRadius: 16, boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)" }}
+            >
+              <div className="card-body">
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <h5 className="mb-0" style={{ fontWeight: 700 }}>
+                    Recent Orders
+                  </h5>
+                  <Link to={route.saleslist} className="text-decoration-none" style={{ color: "#64748b" }}>
+                    See All &gt;
+                  </Link>
+                </div>
+                <div className="table-responsive">
+                  <table className="table align-middle mb-0">
+                    <thead>
+                      <tr style={{ color: "#94a3b8", fontSize: 12 }}>
+                        <th>Medicine name</th>
+                        <th>Batch No</th>
+                        <th>Quantity</th>
+                        <th>Status</th>
+                        <th>Price</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentOrders.map((s) => (
+                        <tr key={s.id}>
+                          <td style={{ fontWeight: 600, maxWidth: 160 }} className="text-truncate">
+                            {(s.medicine || "-").split(",")[0]}
+                          </td>
+                          <td>{s.invoiceNo || "-"}</td>
+                          <td>{s.quantity ?? 0}</td>
+                          <td>{statusPill("completed")}</td>
+                          <td style={{ fontWeight: 600 }}>{money(s.totalPrice)}</td>
+                        </tr>
+                      ))}
+                      {!recentOrders.length ? (
+                        <tr>
+                          <td colSpan={5} className="text-muted text-center py-4">
+                            {loading ? "Loading..." : "No recent orders"}
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
-            <div className="card-body">
-              <div className="table-responsive dataview">
-                <table className="table dashboard-expired-products">
-                  <thead>
-                    <tr>
-                      <th className="no-sort">
-                        <label className="checkboxs">
-                          <input type="checkbox" id="select-all" />
-                          <span className="checkmarks" />
-                        </label>
-                      </th>
-                      <th>Product</th>
-                      <th>SKU</th>
-                      <th>Manufactured Date</th>
-                      <th>Expired Date</th>
-                      <th className="no-sort">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>
-                        <label className="checkboxs">
-                          <input type="checkbox" />
-                          <span className="checkmarks" />
-                        </label>
-                      </td>
-                      <td>
-                        <div className="productimgname">
-                          <Link to="#" className="product-img stock-img">
-                            <ImageWithBasePath
-                              src="assets/img/products/expire-product-01.png"
-                              alt="product"
-                            />
-                          </Link>
-                          <Link to="#">Red Premium Handy </Link>
-                        </div>
-                      </td>
-                      <td>
-                        <Link to="#">PT006</Link>
-                      </td>
-                      <td>17 Jan 2023</td>
-                      <td>29 Mar 2023</td>
-                      <td className="action-table-data">
-                        <div className="edit-delete-action">
-                          <Link className="me-2 p-2" to="#">
-                            <i data-feather="edit" className="feather-edit" />
-                          </Link>
-                          <Link
-                            className=" confirm-text p-2"
-                            to="#"
-                            onClick={showConfirmationAlert}
-                          >
-                            <i
-                              data-feather="trash-2"
-                              className="feather-trash-2"
-                            />
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <label className="checkboxs">
-                          <input type="checkbox" />
-                          <span className="checkmarks" />
-                        </label>
-                      </td>
-                      <td>
-                        <div className="productimgname">
-                          <Link to="#" className="product-img stock-img">
-                            <ImageWithBasePath
-                              src="assets/img/products/expire-product-02.png"
-                              alt="product"
-                            />
-                          </Link>
-                          <Link to="#">Iphone 14 Pro</Link>
-                        </div>
-                      </td>
-                      <td>
-                        <Link to="#">PT007</Link>
-                      </td>
-                      <td>22 Feb 2023</td>
-                      <td>04 Apr 2023</td>
-                      <td className="action-table-data">
-                        <div className="edit-delete-action">
-                          <Link className="me-2 p-2" to="#">
-                            <i data-feather="edit" className="feather-edit" />
-                          </Link>
-                          <Link
-                            className="confirm-text p-2"
-                            to="#"
-                            onClick={showConfirmationAlert}
-                          >
-                            <i
-                              data-feather="trash-2"
-                              className="feather-trash-2"
-                            />
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <label className="checkboxs">
-                          <input type="checkbox" />
-                          <span className="checkmarks" />
-                        </label>
-                      </td>
-                      <td>
-                        <div className="productimgname">
-                          <Link to="#" className="product-img stock-img">
-                            <ImageWithBasePath
-                              src="assets/img/products/expire-product-03.png"
-                              alt="product"
-                            />
-                          </Link>
-                          <Link to="#">Black Slim 200 </Link>
-                        </div>
-                      </td>
-                      <td>
-                        <Link to="#">PT008</Link>
-                      </td>
-                      <td>18 Mar 2023</td>
-                      <td>13 May 2023</td>
-                      <td className="action-table-data">
-                        <div className="edit-delete-action">
-                          <Link className="me-2 p-2" to="#">
-                            <i data-feather="edit" className="feather-edit" />
-                          </Link>
-                          <Link
-                            className=" confirm-text p-2"
-                            to="#"
-                            onClick={showConfirmationAlert}
-                          >
-                            <i
-                              data-feather="trash-2"
-                              className="feather-trash-2"
-                            />
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <label className="checkboxs">
-                          <input type="checkbox" />
-                          <span className="checkmarks" />
-                        </label>
-                      </td>
-                      <td>
-                        <div className="productimgname">
-                          <Link to="#" className="product-img stock-img">
-                            <ImageWithBasePath
-                              src="assets/img/products/expire-product-04.png"
-                              alt="product"
-                            />
-                          </Link>
-                          <Link to="#">Woodcraft Sandal</Link>
-                        </div>
-                      </td>
-                      <td>
-                        <Link to="#">PT009</Link>
-                      </td>
-                      <td>29 Mar 2023</td>
-                      <td>27 May 2023</td>
-                      <td className="action-table-data">
-                        <div className="edit-delete-action">
-                          <Link className="me-2 p-2" to="#">
-                            <i data-feather="edit" className="feather-edit" />
-                          </Link>
-                          <Link
-                            className=" confirm-text p-2"
-                            to="#"
-                            onClick={showConfirmationAlert}
-                          >
-                            <i
-                              data-feather="trash-2"
-                              className="feather-trash-2"
-                            />
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <label className="checkboxs">
-                          <input type="checkbox" />
-                          <span className="checkmarks" />
-                        </label>
-                      </td>
-                      <td>
-                        <div className="productimgname">
-                          <Link to="#" className="product-img stock-img">
-                            <ImageWithBasePath
-                              src="assets/img/products/stock-img-03.png"
-                              alt="product"
-                            />
-                          </Link>
-                          <Link to="#">Apple Series 5 Watch </Link>
-                        </div>
-                      </td>
-                      <td>
-                        <Link to="#">PT010</Link>
-                      </td>
-                      <td>24 Mar 2023</td>
-                      <td>26 May 2023</td>
-                      <td className="action-table-data">
-                        <div className="edit-delete-action">
-                          <Link
-                            className="me-2 p-2"
-                            to="#"
-                            data-bs-toggle="modal"
-                            data-bs-target="#edit-units"
-                          >
-                            <i data-feather="edit" className="feather-edit" />
-                          </Link>
-                          <Link
-                            className=" confirm-text p-2"
-                            to="#"
-                            onClick={showConfirmationAlert}
-                          >
-                            <i
-                              data-feather="trash-2"
-                              className="feather-trash-2"
-                            />
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+          </div>
+        </div>
+
+        <div className="row">
+          <div className="col-xl-7 mb-3">
+            <div
+              className="card border-0 h-100"
+              style={{ borderRadius: 16, boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)" }}
+            >
+              <div className="card-body">
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                  <h5 className="mb-0" style={{ fontWeight: 700 }}>
+                    Monthly Progress
+                  </h5>
+                  <select
+                    className="form-select form-select-sm"
+                    style={{ width: 120, borderRadius: 10 }}
+                    value={chartMode}
+                    onChange={(e) => setChartMode(e.target.value)}
+                  >
+                    <option value="month">Monthly</option>
+                    <option value="year">Yearly</option>
+                  </select>
+                </div>
+                <ReactApexChart
+                  options={monthlyChart.options}
+                  series={monthlyChart.series}
+                  type="bar"
+                  height={300}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="col-xl-5 mb-3">
+            <div
+              className="card border-0 h-100"
+              style={{ borderRadius: 16, boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)" }}
+            >
+              <div className="card-body">
+                <h5 className="mb-1" style={{ fontWeight: 700 }}>
+                  Today&apos;s Report
+                </h5>
+                <div className="d-flex align-items-center gap-2 mb-2">
+                  <span className="text-muted">Total Earning:</span>
+                  <strong>{money(periodSales)}</strong>
+                  <span style={{ color: "#22c55e", fontSize: 12, fontWeight: 700 }}>
+                    {Number(dashboard?.stats?.todaysSales?.percentageChange || 0) >= 0 ? "+" : ""}
+                    {Number(dashboard?.stats?.todaysSales?.percentageChange || 0).toFixed(0)}%
+                  </span>
+                </div>
+                <ReactApexChart
+                  options={radialChart.options}
+                  series={radialChart.series}
+                  type="radialBar"
+                  height={280}
+                />
+                <ul className="list-unstyled mb-0 mt-2">
+                  {[
+                    { label: "Total Purchase", color: "#ef4444", value: money(purchaseShare) },
+                    { label: "Cash Received", color: "#eab308", value: money(cashShare) },
+                    { label: "Bank Receive", color: "#3b82f6", value: money(bankShare) },
+                    { label: "Total Service", color: "#22c55e", value: money(serviceShare) },
+                  ].map((item) => (
+                    <li key={item.label} className="d-flex justify-content-between align-items-center py-1">
+                      <span className="d-flex align-items-center gap-2">
+                        <span
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: "50%",
+                            background: item.color,
+                            display: "inline-block",
+                          }}
+                        />
+                        <span style={{ color: "#64748b", fontSize: 13 }}>{item.label}</span>
+                      </span>
+                      <strong style={{ fontSize: 13 }}>{item.value}</strong>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
           </div>

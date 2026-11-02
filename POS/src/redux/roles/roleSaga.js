@@ -2,65 +2,82 @@ import { all, takeLatest, put, call } from "redux-saga/effects";
 import { toast } from "react-toastify";
 import * as roleService from "./roleService";
 import * as actions from "./roleSlice";
-
-function* handleApiCall(apiFn, ...args) {
-  try {
-    yield put(actions.operationStart());
-    const result = yield call(apiFn, ...args);
-    yield put(actions.operationSuccess());
-    return result;
-  } catch (error) {
-    yield put(actions.operationFailure(error.message));
-    toast.error(error.message);
-    throw error;
-  }
-}
+import { handleApiCall } from "../utils/sagaHelpers";
 
 function* fetchAllRoles() {
-  const roles = yield handleApiCall(roleService.fetchAllRoles);
-  yield put(actions.fetchRolesSuccess(roles));
+  const { ok, result } = yield call(
+    handleApiCall,
+    actions,
+    roleService.fetchAllRoles,
+  );
+  if (!ok) return;
+  yield put(actions.fetchRolesSuccess(result));
 }
 
 function* fetchPermissionCatalog() {
-  const catalog = yield handleApiCall(roleService.fetchPermissionCatalog);
-  yield put(actions.fetchCatalogSuccess(catalog));
+  const { ok, result } = yield call(
+    handleApiCall,
+    actions,
+    roleService.fetchPermissionCatalog,
+  );
+  if (!ok) return;
+  yield put(actions.fetchCatalogSuccess(result));
 }
 
 function* selectRole({ payload: id }) {
-  const role = yield handleApiCall(roleService.fetchRoleById, id);
-  yield put(actions.selectRoleSuccess(role));
+  const { ok, result } = yield call(
+    handleApiCall,
+    actions,
+    roleService.fetchRoleById,
+    id,
+  );
+  if (!ok) return;
+  yield put(actions.selectRoleSuccess(result));
 }
 
 function* createRole({ payload }) {
-  yield handleApiCall(roleService.createRole, payload);
+  const { ok } = yield call(
+    handleApiCall,
+    actions,
+    roleService.createRole,
+    payload,
+  );
+  if (!ok) return;
   toast.success("Role created successfully");
   yield call(fetchAllRoles);
 }
 
 function* assignPermissions({ payload: { id, selections } }) {
-  const role = yield handleApiCall(
+  const { ok, result } = yield call(
+    handleApiCall,
+    actions,
     roleService.assignRolePermissions,
     id,
     selections,
   );
-  yield put(actions.selectRoleSuccess(role));
+  if (!ok) return;
+  yield put(actions.selectRoleSuccess(result));
   yield call(fetchAllRoles);
   toast.success("Permissions assigned successfully");
 }
 
 function* removePermissions({ payload: { id, selections } }) {
-  const role = yield handleApiCall(
+  const { ok, result } = yield call(
+    handleApiCall,
+    actions,
     roleService.removeRolePermissions,
     id,
     selections,
   );
-  yield put(actions.selectRoleSuccess(role));
+  if (!ok) return;
+  yield put(actions.selectRoleSuccess(result));
   yield call(fetchAllRoles);
   toast.success("Permissions removed successfully");
 }
 
 function* deleteRole({ payload: id }) {
-  yield handleApiCall(roleService.deleteRole, id);
+  const { ok } = yield call(handleApiCall, actions, roleService.deleteRole, id);
+  if (!ok) return;
   yield put(actions.clearSelectedRole());
   toast.success("Role deleted successfully");
   yield call(fetchAllRoles);

@@ -1,15 +1,23 @@
 /* eslint-disable no-unused-vars */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useSelector } from "react-redux";
 import FeatherIcon from "feather-icons-react";
 import ImageWithBasePath from "../../core/img/imagewithbasebath";
 import { Search, XCircle } from "react-feather";
 import { all_routes } from "../../Router/all_routes";
+import { getApiBase } from "../../config/runtimeConfig";
+import { resolveUploadUrl } from "../../utils/invoicePrint";
 
 const Header = () => {
   const route = all_routes;
   const [toggle, SetToggle] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const settings = useSelector((state) => state.settings?.settings);
+  const brandLogo = useMemo(() => {
+    const design = settings?.invoiceDesign || {};
+    return resolveUploadUrl(design.sidebarLogoUrl || design.logoUrl, getApiBase());
+  }, [settings]);
 
   const isElementVisible = (element) => {
     return element.offsetWidth > 0 || element.offsetHeight > 0;
@@ -166,13 +174,25 @@ const Header = () => {
           onMouseOver={expandMenuOpen}
         >
           <Link to="/dashboard" className="logo logo-normal">
-            <ImageWithBasePath src="assets/img/logo.png" alt="img" />
+            {brandLogo ? (
+              <img src={brandLogo} alt="logo" className="brand-sidebar-logo" />
+            ) : (
+              <ImageWithBasePath src="assets/img/logo.png" alt="img" />
+            )}
           </Link>
           <Link to="/dashboard" className="logo logo-white">
-            <ImageWithBasePath src="assets/img/logo-white.png" alt="img" />
+            {brandLogo ? (
+              <img src={brandLogo} alt="logo" className="brand-sidebar-logo" />
+            ) : (
+              <ImageWithBasePath src="assets/img/logo-white.png" alt="img" />
+            )}
           </Link>
           <Link to="/dashboard" className="logo-small">
-            <ImageWithBasePath src="assets/img/logo-small.png" alt="img" />
+            {brandLogo ? (
+              <img src={brandLogo} alt="logo" className="brand-sidebar-logo is-small" />
+            ) : (
+              <ImageWithBasePath src="assets/img/logo-small.png" alt="img" />
+            )}
           </Link>
           <Link
             id="toggle_btn"

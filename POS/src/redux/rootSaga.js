@@ -12,6 +12,7 @@ import purchaseOrderSaga from "./purchaseOrders/purchaseOrderSaga";
 import branchProfileSaga from "./branchProfiles/branchProfileSaga";
 import settingSaga from "./settings/settingSaga";
 import roleSaga from "./roles/roleSaga";
+import paymentSaga from "./payments/paymentSaga";
 
 export default function* rootSaga() {
   yield all([
@@ -28,5 +29,6 @@ export default function* rootSaga() {
     branchProfileSaga(),
     settingSaga(),
     roleSaga(),
+    paymentSaga(),
   ]);
 }

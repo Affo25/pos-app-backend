@@ -1,11 +1,13 @@
+const { resolveAdminId } = require('../utils/resolveAdminId');
 const Customer = require('../models/Customer');
 const Sale = require('../models/Sale');
 const { enrichSale, saleNetTotal, saleAmountReceived } = require('../utils/saleHelpers');
+const { sheetRowsFromBuffer, sendExcel } = require('../utils/excelHelpers');
 
 exports.createCustomer = async (req, res) => {
   try {
      const adminId =
-      req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+      resolveAdminId(req.user);
     const data = {
       ...req.body,
       admin_id: adminId,
@@ -22,7 +24,7 @@ exports.createCustomer = async (req, res) => {
 
 exports.getCustomers = async (req, res) => {
   try {
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
 
     const query = {
       admin_id: adminId,
@@ -43,7 +45,7 @@ const checkFacultyAccess = async (id, user) => {
   const faculty = await Customer.findById(id);
   if (!faculty) throw new Error('Faculty not found');
 
-  const loggedInAdminId = user.user_type === 'admin' ? user._id : user.admin_id;
+  const loggedInAdminId = resolveAdminId(user);
   if (faculty.admin_id.toString() !== loggedInAdminId.toString()) {
     throw new Error('Unauthorized access');
   }
@@ -72,10 +74,63 @@ exports.deleteCustomer = async (req, res) => {
   }
 };
 
+exports.exportCustomersToExcel = async (req, res) => {
+  try {
+    const adminId = resolveAdminId(req.user);
+    const docs = await Customer.find({ admin_id: adminId }).lean();
+    const rows = docs.map((c) => ({
+      name: c.name || '',
+      phone: c.phone || '',
+      email: c.email || '',
+      address: c.address || '',
+      opening_balance: c.opening_balance ?? 0,
+      opening_balance_note: c.opening_balance_note || '',
+      loyalty_points: c.loyalty_points ?? 0,
+    }));
+    return sendExcel(res, rows, 'customers-export.xlsx');
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+exports.importCustomersFromExcel = async (req, res) => {
+  try {
+    if (!req.file?.buffer) return res.status(400).json({ error: 'Excel file is required' });
+    const adminId = resolveAdminId(req.user);
+    const rows = sheetRowsFromBuffer(req.file.buffer);
+    const toCreate = [];
+    let skipped = 0;
+    rows.forEach((row) => {
+      const name = String(row.name || '').trim();
+      const phone = String(row.phone || '').trim();
+      if (!name || !phone) {
+        skipped += 1;
+        return;
+      }
+      toCreate.push({
+        name,
+        phone,
+        email: String(row.email || '').trim() || undefined,
+        address: String(row.address || '').trim() || undefined,
+        opening_balance: Number(row.opening_balance || 0),
+        opening_balance_note: String(row.opening_balance_note || '').trim() || undefined,
+        loyalty_points: Number(row.loyalty_points || 0),
+        admin_id: adminId,
+        created_by: req.user._id,
+      });
+    });
+    if (!toCreate.length) return res.status(400).json({ error: 'No valid rows found' });
+    const inserted = await Customer.insertMany(toCreate);
+    return res.status(201).json({ message: 'Customers imported', inserted: inserted.length, skipped });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
 exports.getCustomerLedger = async (req, res) => {
   try {
     const customer = await checkFacultyAccess(req.params.id, req.user);
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
     const customerIdStr = String(customer._id);
 
     const saleQuery = {

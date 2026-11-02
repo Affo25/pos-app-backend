@@ -2,39 +2,58 @@ import { all, takeLatest, put, call } from "redux-saga/effects";
 import { toast } from "react-toastify";
 import * as productService from "./productService";
 import * as actions from "./productSlice";
-
-function* handleApiCall(apiFn, ...args) {
-  try {
-    yield put(actions.operationStart());
-    const result = yield call(apiFn, ...args);
-    yield put(actions.operationSuccess());
-    return result;
-  } catch (error) {
-    yield put(actions.operationFailure(error.message));
-    toast.error(error.message);
-    throw error;
-  }
-}
+import { handleApiCall } from "../utils/sagaHelpers";
 
 function* fetchAllProducts() {
-  const products = yield handleApiCall(productService.fetchAllProducts);
-  yield put(actions.fetchProductsSuccess(products));
+  const { ok, result } = yield call(
+    handleApiCall,
+    actions,
+    productService.fetchAllProducts,
+  );
+  if (!ok) return;
+  const list = Array.isArray(result)
+    ? result
+    : Array.isArray(result?.products)
+      ? result.products
+      : Array.isArray(result?.data)
+        ? result.data
+        : [];
+  yield put(actions.fetchProductsSuccess(list));
 }
 
 function* createProduct({ payload }) {
-  yield handleApiCall(productService.createProduct, payload);
+  const { ok } = yield call(
+    handleApiCall,
+    actions,
+    productService.createProduct,
+    payload,
+  );
+  if (!ok) return;
   toast.success("Product created successfully");
   yield call(fetchAllProducts);
 }
 
 function* updateProduct({ payload: { id, data } }) {
-  yield handleApiCall(productService.updateProduct, id, data);
+  const { ok } = yield call(
+    handleApiCall,
+    actions,
+    productService.updateProduct,
+    id,
+    data,
+  );
+  if (!ok) return;
   yield call(fetchAllProducts);
   toast.success("Product updated successfully");
 }
 
 function* deleteProduct({ payload: id }) {
-  yield handleApiCall(productService.deleteProduct, id);
+  const { ok } = yield call(
+    handleApiCall,
+    actions,
+    productService.deleteProduct,
+    id,
+  );
+  if (!ok) return;
   yield call(fetchAllProducts);
   toast.success("Product deleted successfully");
 }

@@ -11,7 +11,8 @@ exports.uploadMedia = async (req, res) => {
   try {
     if (!isR2Configured()) {
       return res.status(503).json({
-        error: 'Cloudflare R2 is not configured',
+        error:
+          'Cloudflare R2 is not configured. Set CLOUDFLARE_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, and PUBLIC_CLOUDFLARE_URL in .env',
         code: 'R2_NOT_CONFIGURED',
       });
     }
@@ -32,13 +33,22 @@ exports.uploadMedia = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'File uploaded successfully',
+      message: 'File uploaded to Cloudflare R2',
       url: data.url,
+      storage: 'r2',
       data,
     });
   } catch (err) {
     console.error('uploadMedia', err);
-    return res.status(500).json({ error: 'Upload failed', detail: err.message });
+    const status = err?.$metadata?.httpStatusCode === 401 || err?.Code === 'Unauthorized' ? 401 : 500;
+    return res.status(status).json({
+      error:
+        status === 401
+          ? 'R2 Unauthorized — create a new R2 API token (Object Read & Write) and update R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY in .env, then restart the backend'
+          : 'Upload to R2 failed',
+      detail: err.message,
+      code: err.Code || err.code || 'R2_UPLOAD_FAILED',
+    });
   }
 };
 

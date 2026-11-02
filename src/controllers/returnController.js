@@ -2,6 +2,7 @@ const Return = require('../models/Return');
 const Sale = require('../models/Sale');
 const Products = require('../models/Products');
 const { applyReturnsToSaleLineItems, maxReturnableQty } = require('../utils/saleHelpers');
+const { sendExcel } = require('../utils/excelHelpers');
 
 exports.createReturn = async (req, res) => {
   try {
@@ -189,6 +190,30 @@ exports.createReturn = async (req, res) => {
       success: false,
       error: err.message 
     });
+  }
+};
+
+exports.exportReturnsToExcel = async (req, res) => {
+  try {
+    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const returns = await Return.find({ admin_id: adminId })
+      .populate('sale_id', 'invoice_no')
+      .populate('product_id', 'name')
+      .lean();
+    const rows = returns.map((r) => ({
+      invoice_no: r.sale_id?.invoice_no || String(r.sale_id || ''),
+      product: r.product_id?.name || r.product_name || '',
+      quantity: r.quantity ?? 0,
+      reason: r.reason || '',
+      refund_amount: r.refund_amount ?? 0,
+      status: r.status || '',
+      return_date: r.return_date || r.createdAt
+        ? new Date(r.return_date || r.createdAt).toISOString()
+        : '',
+    }));
+    return sendExcel(res, rows, 'sales-returns-export.xlsx');
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 };
 

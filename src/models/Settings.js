@@ -18,8 +18,11 @@ const settingsSchema = new mongoose.Schema(
       receiptPoweredBy: { type: String, default: '' },
       receiptWebsite: { type: String, default: '' },
       logoUrl: { type: String },
-      primaryColor: { type: String, default: '#2563eb' },
-      secondaryColor: { type: String, default: '#1a3a34' },
+      sidebarLogoUrl: { type: String },
+      primaryColor: { type: String, default: '#c4f45d' },
+      secondaryColor: { type: String, default: '#0d2b26' },
+      buttonColor: { type: String, default: '#c4f45d' },
+      sidebarColor: { type: String, default: '#0d2b26' },
       posLayout: { type: String, default: 'tabular' },
     },
     user_id: {

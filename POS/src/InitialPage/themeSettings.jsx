@@ -420,7 +420,7 @@ const ThemeSettings = () => {
                         </div>
                       </div>
                     </div>
-                    <form id="nav_color" method="post">
+                    <div id="nav_color">
                       <div className="theme-mode">
                         <div className="theme-head">
                           <h6>Navigation Colors</h6>
@@ -507,7 +507,7 @@ const ThemeSettings = () => {
                           </div>
                         </div>
                       </div>
-                    </form>
+                    </div>
                   </div>
                 </div>
                 <div className="sidebar-footer">

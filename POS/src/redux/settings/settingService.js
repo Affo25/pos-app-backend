@@ -1,4 +1,4 @@
-import { authFetch, parseResponse } from "../utils/apiHelpers";
+import { authFetch, authFetchForm, parseResponse } from "../utils/apiHelpers";
 
 const API_URL = "/settings";
 
@@ -13,4 +13,24 @@ export const updateSettings = async (data) => {
     body: JSON.stringify(data),
   });
   return parseResponse(response, "Failed to update settings");
+};
+
+export const uploadInvoiceLogo = async (file) => {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await authFetchForm(`${API_URL}/invoice-logo`, {
+    method: "POST",
+    body: form,
+  });
+  return parseResponse(response, "Failed to upload invoice logo");
+};
+
+export const uploadSidebarLogo = async (file) => {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await authFetchForm(`${API_URL}/sidebar-logo`, {
+    method: "POST",
+    body: form,
+  });
+  return parseResponse(response, "Failed to upload sidebar logo");
 };

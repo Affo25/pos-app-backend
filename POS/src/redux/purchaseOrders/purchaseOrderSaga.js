@@ -2,41 +2,51 @@ import { all, takeLatest, put, call } from "redux-saga/effects";
 import { toast } from "react-toastify";
 import * as purchaseOrderService from "./purchaseOrderService";
 import * as actions from "./purchaseOrderSlice";
-
-function* handleApiCall(apiFn, ...args) {
-  try {
-    yield put(actions.operationStart());
-    const result = yield call(apiFn, ...args);
-    yield put(actions.operationSuccess());
-    return result;
-  } catch (error) {
-    yield put(actions.operationFailure(error.message));
-    toast.error(error.message);
-    throw error;
-  }
-}
+import { handleApiCall } from "../utils/sagaHelpers";
 
 function* fetchAllPurchaseOrders() {
-  const purchaseOrders = yield handleApiCall(
+  const { ok, result } = yield call(
+    handleApiCall,
+    actions,
     purchaseOrderService.fetchAllPurchaseOrders,
   );
-  yield put(actions.fetchPurchaseOrdersSuccess(purchaseOrders));
+  if (!ok) return;
+  yield put(actions.fetchPurchaseOrdersSuccess(result));
 }
 
 function* createPurchaseOrder({ payload }) {
-  yield handleApiCall(purchaseOrderService.createPurchaseOrder, payload);
+  const { ok } = yield call(
+    handleApiCall,
+    actions,
+    purchaseOrderService.createPurchaseOrder,
+    payload,
+  );
+  if (!ok) return;
   toast.success("Purchase order created successfully");
   yield call(fetchAllPurchaseOrders);
 }
 
 function* updatePurchaseOrder({ payload: { id, data } }) {
-  yield handleApiCall(purchaseOrderService.updatePurchaseOrder, id, data);
+  const { ok } = yield call(
+    handleApiCall,
+    actions,
+    purchaseOrderService.updatePurchaseOrder,
+    id,
+    data,
+  );
+  if (!ok) return;
   yield call(fetchAllPurchaseOrders);
   toast.success("Purchase order updated successfully");
 }
 
 function* deletePurchaseOrder({ payload: id }) {
-  yield handleApiCall(purchaseOrderService.deletePurchaseOrder, id);
+  const { ok } = yield call(
+    handleApiCall,
+    actions,
+    purchaseOrderService.deletePurchaseOrder,
+    id,
+  );
+  if (!ok) return;
   yield call(fetchAllPurchaseOrders);
   toast.success("Purchase order deleted successfully");
 }

@@ -23,8 +23,8 @@ function resolveLogoPath(logoUrl) {
 
 function buildBranding(invoiceDesign) {
   const d = invoiceDesign || {};
-  const accent = d.primaryColor || C.accent;
-  const forest = d.secondaryColor || C.forest;
+  const accent = d.buttonColor || d.primaryColor || C.accent;
+  const forest = d.sidebarColor || d.secondaryColor || C.forest;
   const validTemplates = ['report_a4', 'purchase_order_a4', 'restaurant_80mm', 'a4_80mm_strip', 'pos_receipt'];
   const template = validTemplates.includes(d.template) ? d.template : 'a4_80mm_strip';
   return {

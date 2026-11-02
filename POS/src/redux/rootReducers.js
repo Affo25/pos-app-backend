@@ -12,6 +12,7 @@ import purchaseOrderReducer from "./purchaseOrders/purchaseOrderSlice";
 import branchProfileReducer from "./branchProfiles/branchProfileSlice";
 import settingsReducer from "./settings/settingSlice";
 import roleReducer from "./roles/roleSlice";
+import paymentReducer from "./payments/paymentSlice";
 import templateReducer from "../core/redux/reducer";
 import templateInitial from "../core/redux/initial.value";
 
@@ -29,6 +30,7 @@ const nestedReducer = combineReducers({
   branchProfiles: branchProfileReducer,
   settings: settingsReducer,
   roles: roleReducer,
+  payments: paymentReducer,
 });
 
 const templateKeys = Object.keys(templateInitial);
@@ -59,6 +61,7 @@ export default function rootReducer(state, action) {
       branchProfiles: state?.branchProfiles,
       settings: state?.settings,
       roles: state?.roles,
+      payments: state?.payments,
     },
     action,
   );

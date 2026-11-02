@@ -8,12 +8,14 @@ const {
   updatePurchaseOrder,
   deletePurchaseOrder,
   addPurchaseOrderReturn,
+  exportPurchaseOrdersToExcel,
 } = require('../controllers/purchaseOrderController');
 
 const router = express.Router();
 
 router.post('/', protect, createPurchaseOrder);
 router.get('/next-order-number', protect, getNextOrderNumber);
+router.get('/export-excel', protect, exportPurchaseOrdersToExcel);
 router.get('/', protect, getPurchaseOrders);
 router.get('/:id', protect, getPurchaseOrderById);
 router.post('/:id/returns', protect, addPurchaseOrderReturn);

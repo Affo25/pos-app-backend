@@ -1,686 +1,338 @@
-import React, { useState } from 'react'
-import ImageWithBasePath from '../../core/img/imagewithbasebath'
-import { OverlayTrigger, Tooltip } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
-import { ChevronUp, Download, Eye, File, Filter, PlusCircle, RotateCcw, Sliders, StopCircle, User } from 'feather-icons-react/build/IconComponents';
-import { setToogleHeader } from '../../core/redux/action';
-import { useDispatch, useSelector } from 'react-redux';
-import Select from 'react-select';
-import AddPurchases from '../../core/modals/purchases/addpurchases';
-import ImportPurchases from '../../core/modals/purchases/importpurchases';
-import EditPurchases from '../../core/modals/purchases/editpurchases';
-import withReactContent from 'sweetalert2-react-content';
-import Swal from 'sweetalert2';
+import React, { useEffect, useMemo, useState } from "react";
+import { Table } from "antd";
+import { Modal, Button } from "react-bootstrap";
+import Select from "react-select";
+import { useDispatch, useSelector } from "react-redux";
+import { Printer, ShoppingBag, Trash2 } from "feather-icons-react/build/IconComponents";
+import Swal from "sweetalert2";
+import withReactContent from "sweetalert2-react-content";
+import dayjs from "dayjs";
+import { toast } from "react-toastify";
+import { fetchAllSuppliersAction } from "../../redux/suppliers/supplierSlice";
+import { fetchAllProductsAction } from "../../redux/products/productSlice";
+import {
+  deletePurchaseOrderAction,
+  fetchAllPurchaseOrdersAction,
+} from "../../redux/purchaseOrders/purchaseOrderSlice";
+import * as purchaseOrderService from "../../redux/purchaseOrders/purchaseOrderService";
+import CrudListToolbar from "../../core/components/CrudListToolbar";
+import ModernCrudShell from "../../core/components/ModernCrudShell";
+import {
+  openInvoicePreview,
+  purchaseOrderToInvoicePayload,
+} from "../../utils/invoicePrint";
 
 const PurchasesList = () => {
+  const dispatch = useDispatch();
+  const MySwal = withReactContent(Swal);
+  const { purchaseOrders, loading } = useSelector((state) => state.purchaseOrders);
+  const { suppliers } = useSelector((state) => state.suppliers);
+  const { products } = useSelector((state) => state.products);
 
-    const dispatch = useDispatch();
-    const data = useSelector((state) => state.toggle_header);
+  const [showModal, setShowModal] = useState(false);
+  const [supplier, setSupplier] = useState(null);
+  const [product, setProduct] = useState(null);
+  const [quantity, setQuantity] = useState("1");
+  const [price, setPrice] = useState("");
+  const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState("all");
+  const [filtersOpen, setFiltersOpen] = useState(true);
 
-    const [isFilterVisible, setIsFilterVisible] = useState(false);
-    const toggleFilterVisibility = () => {
-        setIsFilterVisible((prevVisibility) => !prevVisibility);
+  useEffect(() => {
+    dispatch(fetchAllPurchaseOrdersAction());
+    dispatch(fetchAllSuppliersAction());
+    dispatch(fetchAllProductsAction());
+  }, [dispatch]);
+
+  const rows = Array.isArray(purchaseOrders) ? purchaseOrders : [];
+
+  const supplierOptions = useMemo(
+    () => (suppliers || []).map((s) => ({ value: s._id, label: s.name, name: s.name })),
+    [suppliers],
+  );
+  const productOptions = useMemo(
+    () =>
+      (products || []).map((p) => ({
+        value: p._id,
+        label: p.name,
+        price: p.unit_price,
+      })),
+    [products],
+  );
+
+  const tabCounts = useMemo(() => {
+    const norm = (p) => String(p.status || "").toLowerCase();
+    return {
+      all: rows.length,
+      pending: rows.filter((p) => ["pending", "draft"].includes(norm(p))).length,
+      received: rows.filter((p) => ["received", "completed", "done"].includes(norm(p))).length,
+      cancelled: rows.filter((p) => ["cancelled", "canceled"].includes(norm(p))).length,
     };
-    const oldandlatestvalue = [
-        { value: 'date', label: 'Sort by Date' },
-        { value: 'newest', label: 'Newest' },
-        { value: 'oldest', label: 'Oldest' },
-    ];
+  }, [rows]);
 
-    const suppliername = [
-        { value: 'chooseSupplier', label: 'Choose Supplier Name' },
-        { value: 'apexComputers', label: 'Apex Computers' },
-        { value: 'beatsHeadphones', label: 'Beats Headphones' },
-        { value: 'dazzleShoes', label: 'Dazzle Shoes' },
-        { value: 'bestAccessories', label: 'Best Accessories' },
-      ];
-      const status = [
-        { value: 'chooseStatus', label: 'Choose Status' },
-        { value: 'received', label: 'Received' },
-        { value: 'ordered', label: 'Ordered' },
-        { value: 'pending', label: 'Pending' },
-      ];
-      const refrencecode = [
-        { value: 'enterReference', label: 'Enter Reference' },
-        { value: 'PT001', label: 'PT001' },
-        { value: 'PT002', label: 'PT002' },
-        { value: 'PT003', label: 'PT003' },
-      ];
-      const paymentstatus = [
-        { value: 'choosePaymentStatus', label: 'Choose Payment Status' },
-        { value: 'paid', label: 'Paid' },
-        { value: 'partial', label: 'Partial' },
-        { value: 'unpaid', label: 'Unpaid' },
-      ];
-    const renderTooltip = (props) => (
-        <Tooltip id="pdf-tooltip" {...props}>
-            Pdf
-        </Tooltip>
-    );
-    const renderExcelTooltip = (props) => (
-        <Tooltip id="excel-tooltip" {...props}>
-            Excel
-        </Tooltip>
-    );
-    const renderPrinterTooltip = (props) => (
-        <Tooltip id="printer-tooltip" {...props}>
-            Printer
-        </Tooltip>
-    );
-    const renderRefreshTooltip = (props) => (
-        <Tooltip id="refresh-tooltip" {...props}>
-            Refresh
-        </Tooltip>
-    );
-    const renderCollapseTooltip = (props) => (
-        <Tooltip id="refresh-tooltip" {...props}>
-            Collapse
-        </Tooltip>
-    );
-    const MySwal = withReactContent(Swal);
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter((po) => {
+      const supplierName = po.supplier_name || po.supplier_id?.name || "";
+      const hay = `${po.order_number || ""} ${supplierName} ${po.status || ""}`.toLowerCase();
+      if (q && !hay.includes(q)) return false;
+      const st = String(po.status || "").toLowerCase();
+      if (activeTab === "pending" && !["pending", "draft"].includes(st)) return false;
+      if (activeTab === "received" && !["received", "completed", "done"].includes(st)) return false;
+      if (activeTab === "cancelled" && !["cancelled", "canceled"].includes(st)) return false;
+      return true;
+    });
+  }, [rows, search, activeTab]);
 
-    const showConfirmationAlert = () => {
-        MySwal.fire({
-            title: 'Are you sure?',
-            text: 'You won\'t be able to revert this!',
-            showCancelButton: true,
-            confirmButtonColor: '#00ff00',
-            confirmButtonText: 'Yes, delete it!',
-            cancelButtonColor: '#ff0000',
-            cancelButtonText: 'Cancel',
-        }).then((result) => {
-            if (result.isConfirmed) {
+  const closeModal = () => {
+    setShowModal(false);
+    setSupplier(null);
+    setProduct(null);
+    setQuantity("1");
+    setPrice("");
+  };
 
-                MySwal.fire({
-                    title: 'Deleted!',
-                    text: 'Your file has been deleted.',
-                    className: "btn btn-success",
-                    confirmButtonText: 'OK',
-                    customClass: {
-                        confirmButton: 'btn btn-success',
-                    },
-                });
-            } else {
-                MySwal.close();
-            }
-
-        });
+  const onCreate = async (e) => {
+    e.preventDefault();
+    if (!supplier?.value || !product?.value) {
+      toast.error("Select supplier and product");
+      return;
+    }
+    const qty = Math.max(1, Number(quantity) || 1);
+    const unitPrice = Number(price !== "" ? price : product.price || 0);
+    const payload = {
+      supplier_id: supplier.value,
+      supplier_name: supplier.name || supplier.label,
+      items: [
+        {
+          product_id: product.value,
+          product_name: product.label,
+          quantity: qty,
+          price: unitPrice,
+        },
+      ],
+      order_date: new Date().toISOString(),
+      status: "pending",
     };
+    try {
+      const created = await purchaseOrderService.createPurchaseOrder(payload);
+      closeModal();
+      dispatch(fetchAllPurchaseOrdersAction());
+      toast.success("Purchase order created");
+      try {
+        await openInvoicePreview(
+          purchaseOrderToInvoicePayload(created),
+          "purchase_order_a4",
+        );
+      } catch (printErr) {
+        toast.error(printErr?.message || "PO saved, but PDF failed");
+      }
+    } catch (err) {
+      toast.error(err?.message || "Failed to create purchase order");
+    }
+  };
 
-    return (
-        <div>
-            <div className="page-wrapper">
-                <div className="content">
-                    <div className="page-header transfer">
-                        <div className="add-item d-flex">
-                            <div className="page-title">
-                                <h4>Purchase List</h4>
-                                <h6>Manage your purchases</h6>
-                            </div>
-                        </div>
-                        <ul className="table-top-head">
-                            <li>
-                                <OverlayTrigger placement="top" overlay={renderTooltip}>
-                                    <Link>
-                                        <ImageWithBasePath src="assets/img/icons/pdf.svg" alt="img" />
-                                    </Link>
-                                </OverlayTrigger>
-                            </li>
-                            <li>
-                                <OverlayTrigger placement="top" overlay={renderExcelTooltip}>
-                                    <Link data-bs-toggle="tooltip" data-bs-placement="top">
-                                        <ImageWithBasePath src="assets/img/icons/excel.svg" alt="img" />
-                                    </Link>
-                                </OverlayTrigger>
-                            </li>
-                            <li>
-                                <OverlayTrigger placement="top" overlay={renderPrinterTooltip}>
+  const onDelete = (id) => {
+    MySwal.fire({
+      title: "Delete purchase order?",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete",
+    }).then((result) => {
+      if (result.isConfirmed) dispatch(deletePurchaseOrderAction(id));
+    });
+  };
 
-                                    <Link data-bs-toggle="tooltip" data-bs-placement="top">
-                                        <i data-feather="printer" className="feather-printer" />
-                                    </Link>
-                                </OverlayTrigger>
-                            </li>
-                            <li>
-                                <OverlayTrigger placement="top" overlay={renderRefreshTooltip}>
+  const onPrint = async (po) => {
+    try {
+      await openInvoicePreview(purchaseOrderToInvoicePayload(po), "purchase_order_a4");
+    } catch (err) {
+      toast.error(err?.message || "Failed to generate purchase order PDF");
+    }
+  };
 
-                                    <Link data-bs-toggle="tooltip" data-bs-placement="top">
-                                        <RotateCcw />
-                                    </Link>
-                                </OverlayTrigger>
-                            </li>
-                            <li>
-                                <OverlayTrigger placement="top" overlay={renderCollapseTooltip}>
+  const dataSource = useMemo(
+    () =>
+      filtered.map((po, i) => ({
+        key: po._id || String(i),
+        index: i + 1,
+        id: po._id,
+        raw: po,
+        order: po.order_number || "-",
+        supplier: po.supplier_name || po.supplier_id?.name || "-",
+        items: Array.isArray(po.items) ? po.items.length : 0,
+        total: Number(po.net_total ?? po.order_total ?? po.total_amount ?? 0).toFixed(2),
+        status: po.status || "-",
+        date: po.order_date ? dayjs(po.order_date).format("YYYY-MM-DD") : "-",
+      })),
+    [filtered],
+  );
 
-                                    <Link
-                                        data-bs-toggle="tooltip"
-                                        data-bs-placement="top"
-                                        id="collapse-header"
-                                        className={data ? "active" : ""}
-                                        onClick={() => { dispatch(setToogleHeader(!data)) }}
-                                    >
-                                        <ChevronUp />
-                                    </Link>
-                                </OverlayTrigger>
-                            </li>
-                        </ul>
-                        <div className="d-flex purchase-pg-btn">
-                            <div className="page-btn">
-                                <Link
-                                    to="#"
-                                    className="btn btn-added"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#add-units"
-                                >
-                                    
-                                    <PlusCircle className="me-2"/> 
-                                    Add New Purchase
-                                </Link>
-                            </div>
-                            <div className="page-btn import">
-                                <Link
-                                    to="#"
-                                    className="btn btn-added color"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#view-notes"
-                                >
-                                  
-                                    <Download  className="me-2"/>
-                                    Import Purchase
-                                </Link>
-                            </div>
-                        </div>
-                    </div>
-                    {/* /product list */}
-                    <div className="card table-list-card">
-                        <div className="card-body">
-                            <div className="table-top">
-                                <div className="search-set">
-                                    <div className="search-input">
-                                        <input
-                                            type="text"
-                                            placeholder="Search"
-                                            className="form-control form-control-sm formsearch"
-                                        />
-                                        <Link to className="btn btn-searchset">
-                                            <i data-feather="search" className="feather-search" />
-                                        </Link>
-                                    </div>
-                                </div>
-                                <div className="search-path">
-                                    <Link className={`btn btn-filter ${isFilterVisible ? "setclose" : ""}`} id="filter_search">
-                                        <Filter
-                                            className="filter-icon"
-                                            onClick={toggleFilterVisibility}
-                                        />
-                                        <span onClick={toggleFilterVisibility}>
-                                            <ImageWithBasePath src="assets/img/icons/closes.svg" alt="img" />
-                                        </span>
-                                    </Link>
-                                </div>
-                                <div className="form-sort">
-                                <Sliders className="info-img" />
-                                <Select
-                                    className="select"
-                                    options={oldandlatestvalue}
-                                    placeholder="Newest"
-                                />
-                                </div>
-                            </div>
-                            {/* /Filter */}
-                            <div
-                                className={`card${isFilterVisible ? " visible" : ""}`}
-                                id="filter_inputs"
-                                style={{ display: isFilterVisible ? "block" : "none" }}
-                            >
-                                <div className="card-body pb-0">
-                                    <div className="row">
-                                        <div className="col-lg-2 col-sm-6 col-12">
-                                            <div className="input-blocks">
-                                                <User className="info-img"/>
-                                                <Select options={suppliername} className="select" placeholder="Choose Supplier Name" />
+  const statusBadge = (status) => {
+    const st = String(status || "").toLowerCase();
+    if (["received", "completed", "done"].includes(st)) {
+      return <span className="modern-crud-badge is-ok">{status}</span>;
+    }
+    if (["pending", "draft"].includes(st)) {
+      return <span className="modern-crud-badge is-warn">{status}</span>;
+    }
+    if (["cancelled", "canceled"].includes(st)) {
+      return <span className="modern-crud-badge is-danger">{status}</span>;
+    }
+    return status;
+  };
 
-                                            </div>
-                                        </div>
-                                        <div className="col-lg-2 col-sm-6 col-12">
-                                            <div className="input-blocks">
-                                                <StopCircle  className="info-img"/>
-                                                <Select options={status} className="select" placeholder="Choose Status" />
-
-                                            </div>
-                                        </div>
-                                        <div className="col-lg-2 col-sm-6 col-12">
-                                            <div className="input-blocks">
-                                                <File className="info-img"/>
-                                                <Select options={refrencecode} className="select" placeholder="Enter Reference" />
-
-                                            </div>
-                                        </div>
-                                        <div className="col-lg-2 col-sm-6 col-12">
-                                            <div className="input-blocks">
-                                                <i className="fas fa-money-bill info-img" />
-                                                <Select options={paymentstatus} className="select" placeholder="Choose Payment Status" />
-
-                                            </div>
-                                        </div>
-                                        <div className="col-lg-4 col-sm-6 col-12 ms-auto">
-                                            <div className="input-blocks">
-                                                <Link className="btn btn-filters ms-auto">
-                                                    {" "}
-                                                    <i data-feather="search" className="feather-search" />{" "}
-                                                    Search{" "}
-                                                </Link>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            {/* /Filter */}
-                            <div className="table-responsive product-list">
-                                <table className="table  datanew list">
-                                    <thead>
-                                        <tr>
-                                            <th className="no-sort">
-                                                <label className="checkboxs">
-                                                    <input type="checkbox" id="select-all" />
-                                                    <span className="checkmarks" />
-                                                </label>
-                                            </th>
-                                            <th>Supplier Name</th>
-                                            <th>Reference</th>
-                                            <th>Date</th>
-                                            <th>Status</th>
-                                            <th>Grand Total</th>
-                                            <th>Paid</th>
-                                            <th>Due</th>
-                                            <th>Created by</th>
-                                            <th className="no-sort">Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td>
-                                                <label className="checkboxs">
-                                                    <input type="checkbox" />
-                                                    <span className="checkmarks" />
-                                                </label>
-                                            </td>
-                                            <td>Apex Computers</td>
-                                            <td>PT001 </td>
-                                            <td>19 Jan 2023</td>
-                                            <td>
-                                                <span className="badges status-badge">Received</span>
-                                            </td>
-                                            <td>$550</td>
-                                            <td>$550</td>
-                                            <td>$0.00</td>
-                                            <td>
-                                                <span className="badge-linesuccess">Paid</span>
-                                            </td>
-                                            <td className="action-table-data">
-                                                <div className="edit-delete-action">
-                                                    <Link className="me-2 p-2" to="#">
-                                                        <Eye className="action-eye"/>
-                                                    </Link>
-                                                    <Link
-                                                        className="me-2 p-2"
-                                                        data-bs-toggle="modal"
-                                                        data-bs-target="#edit-units"
-                                                    >
-                                                        <i data-feather="edit" className="feather-edit" />
-                                                    </Link>
-                                                    <Link className="confirm-text p-2" to="#" onClick={showConfirmationAlert}>
-                                                        <i data-feather="trash-2" className="feather-trash-2" />
-                                                    </Link>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>
-                                                <label className="checkboxs">
-                                                    <input type="checkbox" />
-                                                    <span className="checkmarks" />
-                                                </label>
-                                            </td>
-                                            <td>Beats Headphones</td>
-                                            <td>PT002 </td>
-                                            <td>27 Jan 2023</td>
-                                            <td>
-                                                <span className="badges status-badge">Received</span>
-                                            </td>
-                                            <td>$370</td>
-                                            <td>$370</td>
-                                            <td>$0.00</td>
-                                            <td>
-                                                <span className="badge-linesuccess">Paid</span>
-                                            </td>
-                                            <td className="action-table-data">
-                                                <div className="edit-delete-action">
-                                                    <Link className="me-2 p-2" to="#">
-                                                    <Eye className="action-eye"/>
-                                                    </Link>
-                                                    <Link
-                                                        className="me-2 p-2"
-                                                        data-bs-toggle="modal"
-                                                        data-bs-target="#edit-units"
-                                                    >
-                                                        <i data-feather="edit" className="feather-edit" />
-                                                    </Link>
-                                                    <Link className="confirm-text p-2" to="#"  onClick={showConfirmationAlert}>
-                                                        <i data-feather="trash-2" className="feather-trash-2" />
-                                                    </Link>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>
-                                                <label className="checkboxs">
-                                                    <input type="checkbox" />
-                                                    <span className="checkmarks" />
-                                                </label>
-                                            </td>
-                                            <td>Dazzle Shoes</td>
-                                            <td>PT003 </td>
-                                            <td>08 Feb 2023</td>
-                                            <td>
-                                                <span className="badges status-badge ordered">Ordered</span>
-                                            </td>
-                                            <td>$400</td>
-                                            <td>$400</td>
-                                            <td>$200</td>
-                                            <td>
-                                                <span className="badges-warning">Partial</span>
-                                            </td>
-                                            <td className="action-table-data">
-                                                <div className="edit-delete-action">
-                                                    <Link className="me-2 p-2" to="#">
-                                                    <Eye className="action-eye"/>
-                                                    </Link>
-                                                    <Link
-                                                        className="me-2 p-2"
-                                                        data-bs-toggle="modal"
-                                                        data-bs-target="#edit-units"
-                                                    >
-                                                        <i data-feather="edit" className="feather-edit" />
-                                                    </Link>
-                                                    <Link className="confirm-text p-2" to="#"  onClick={showConfirmationAlert}>
-                                                        <i data-feather="trash-2" className="feather-trash-2" />
-                                                    </Link>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>
-                                                <label className="checkboxs">
-                                                    <input type="checkbox" />
-                                                    <span className="checkmarks" />
-                                                </label>
-                                            </td>
-                                            <td>Best Accessories</td>
-                                            <td>PT004 </td>
-                                            <td>16 Feb 2023</td>
-                                            <td>
-                                                <span className="badges unstatus-badge">Pending</span>
-                                            </td>
-                                            <td>$560</td>
-                                            <td>$0.00</td>
-                                            <td>$560</td>
-                                            <td>
-                                                <span className="badge badge-linedangered">Unpaid</span>
-                                            </td>
-                                            <td className="action-table-data">
-                                                <div className="edit-delete-action">
-                                                    <Link className="me-2 p-2" to="#">
-                                                    <Eye className="action-eye"/>
-                                                    </Link>
-                                                    <Link
-                                                        className="me-2 p-2"
-                                                        data-bs-toggle="modal"
-                                                        data-bs-target="#edit-units"
-                                                    >
-                                                        <i data-feather="edit" className="feather-edit" />
-                                                    </Link>
-                                                    <Link className="confirm-text p-2" to="#"  onClick={showConfirmationAlert}>
-                                                        <i data-feather="trash-2" className="feather-trash-2" />
-                                                    </Link>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>
-                                                <label className="checkboxs">
-                                                    <input type="checkbox" />
-                                                    <span className="checkmarks" />
-                                                </label>
-                                            </td>
-                                            <td>A-Z Store</td>
-                                            <td>PT005</td>
-                                            <td>12 Mar 2023</td>
-                                            <td>
-                                                <span className="badges unstatus-badge">Pending</span>
-                                            </td>
-                                            <td>$240</td>
-                                            <td>$0.00</td>
-                                            <td>$240</td>
-                                            <td>
-                                                <span className="badge badge-linedangered">Unpaid</span>
-                                            </td>
-                                            <td className="action-table-data">
-                                                <div className="edit-delete-action">
-                                                    <Link className="me-2 p-2" to="#">
-                                                    <Eye className="action-eye"/>
-                                                    </Link>
-                                                    <Link
-                                                        className="me-2 p-2"
-                                                        data-bs-toggle="modal"
-                                                        data-bs-target="#edit-units"
-                                                    >
-                                                        <i data-feather="edit" className="feather-edit" />
-                                                    </Link>
-                                                    <Link className="confirm-text p-2" to="#"  onClick={showConfirmationAlert}>
-                                                        <i data-feather="trash-2" className="feather-trash-2" />
-                                                    </Link>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>
-                                                <label className="checkboxs">
-                                                    <input type="checkbox" />
-                                                    <span className="checkmarks" />
-                                                </label>
-                                            </td>
-                                            <td>Hatimi Hardwares</td>
-                                            <td>PT006</td>
-                                            <td>24 Mar 2023</td>
-                                            <td>
-                                                <span className="badges status-badge">Received</span>
-                                            </td>
-                                            <td>$170</td>
-                                            <td>$170</td>
-                                            <td>$0.00</td>
-                                            <td>
-                                                <span className="badge-linesuccess">Paid</span>
-                                            </td>
-                                            <td className="action-table-data">
-                                                <div className="edit-delete-action">
-                                                    <Link className="me-2 p-2" to="#">
-                                                    <Eye className="action-eye"/>
-                                                    </Link>
-                                                    <Link
-                                                        className="me-2 p-2"
-                                                        data-bs-toggle="modal"
-                                                        data-bs-target="#edit-units"
-                                                    >
-                                                        <i data-feather="edit" className="feather-edit" />
-                                                    </Link>
-                                                    <Link className="confirm-text p-2" to="#"  onClick={showConfirmationAlert}>
-                                                        <i data-feather="trash-2" className="feather-trash-2" />
-                                                    </Link>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>
-                                                <label className="checkboxs">
-                                                    <input type="checkbox" />
-                                                    <span className="checkmarks" />
-                                                </label>
-                                            </td>
-                                            <td>Aesthetic Bags</td>
-                                            <td>PT007</td>
-                                            <td>06 Apr 2023</td>
-                                            <td>
-                                                <span className="badges unstatus-badge">Pending</span>
-                                            </td>
-                                            <td>$230</td>
-                                            <td>$0.00</td>
-                                            <td>$230</td>
-                                            <td>
-                                                <span className="badge badge-linedangered">Unpaid</span>
-                                            </td>
-                                            <td className="action-table-data">
-                                                <div className="edit-delete-action">
-                                                    <Link className="me-2 p-2" to="#">
-                                                    <Eye className="action-eye"/>
-                                                    </Link>
-                                                    <Link
-                                                        className="me-2 p-2"
-                                                        data-bs-toggle="modal"
-                                                        data-bs-target="#edit-units"
-                                                    >
-                                                        <i data-feather="edit" className="feather-edit" />
-                                                    </Link>
-                                                    <Link className="confirm-text p-2" to="#"  onClick={showConfirmationAlert}>
-                                                        <i data-feather="trash-2" className="feather-trash-2" />
-                                                    </Link>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>
-                                                <label className="checkboxs">
-                                                    <input type="checkbox" />
-                                                    <span className="checkmarks" />
-                                                </label>
-                                            </td>
-                                            <td>Alpha Mobiles</td>
-                                            <td>PT008</td>
-                                            <td>14 Apr 2023</td>
-                                            <td>
-                                                <span className="badges status-badge ordered">Ordered</span>
-                                            </td>
-                                            <td>$300</td>
-                                            <td>$150</td>
-                                            <td>$300</td>
-                                            <td>
-                                                <span className="badges-warning">Partial</span>
-                                            </td>
-                                            <td className="action-table-data">
-                                                <div className="edit-delete-action">
-                                                    <Link className="me-2 p-2" to="#">
-                                                    <Eye className="action-eye"/>
-                                                    </Link>
-                                                    <Link
-                                                        className="me-2 p-2"
-                                                        data-bs-toggle="modal"
-                                                        data-bs-target="#edit-units"
-                                                    >
-                                                        <i data-feather="edit" className="feather-edit" />
-                                                    </Link>
-                                                    <Link className="confirm-text p-2" to="#"  onClick={showConfirmationAlert}>
-                                                        <i data-feather="trash-2" className="feather-trash-2" />
-                                                    </Link>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>
-                                                <label className="checkboxs">
-                                                    <input type="checkbox" />
-                                                    <span className="checkmarks" />
-                                                </label>
-                                            </td>
-                                            <td>Sigma Chairs</td>
-                                            <td>PT009</td>
-                                            <td>02 May 2023</td>
-                                            <td>
-                                                <span className="badges unstatus-badge">Pending</span>
-                                            </td>
-                                            <td>$620</td>
-                                            <td>$0.00</td>
-                                            <td>$620</td>
-                                            <td>
-                                                <span className="badge badge-linedangered">Unpaid</span>
-                                            </td>
-                                            <td className="action-table-data">
-                                                <div className="edit-delete-action">
-                                                    <Link className="me-2 p-2" to="#">
-                                                    <Eye className="action-eye"/>
-                                                    </Link>
-                                                    <Link
-                                                        className="me-2 p-2"
-                                                        data-bs-toggle="modal"
-                                                        data-bs-target="#edit-units"
-                                                    >
-                                                        <i data-feather="edit" className="feather-edit" />
-                                                    </Link>
-                                                    <Link className="confirm-text p-2" to="#"  onClick={showConfirmationAlert}>
-                                                        <i data-feather="trash-2" className="feather-trash-2" />
-                                                    </Link>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>
-                                                <label className="checkboxs">
-                                                    <input type="checkbox" />
-                                                    <span className="checkmarks" />
-                                                </label>
-                                            </td>
-                                            <td>Zenith Bags</td>
-                                            <td>PT010</td>
-                                            <td>23 May 2023</td>
-                                            <td>
-                                                <span className="badges status-badge">Received</span>
-                                            </td>
-                                            <td>$200</td>
-                                            <td>$200</td>
-                                            <td>$0.00</td>
-                                            <td>
-                                                <span className="badge-linesuccess">Paid</span>
-                                            </td>
-                                            <td className="action-table-data">
-                                                <div className="edit-delete-action">
-                                                    <Link className="me-2 p-2" to="#">
-                                                    <Eye className="action-eye"/>
-                                                    </Link>
-                                                    <Link
-                                                        className="me-2 p-2"
-                                                        data-bs-toggle="modal"
-                                                        data-bs-target="#edit-units"
-                                                    >
-                                                        <i data-feather="edit" className="feather-edit" />
-                                                    </Link>
-                                                    <Link className="confirm-text p-2" to="#"  onClick={showConfirmationAlert}>
-                                                        <i data-feather="trash-2" className="feather-trash-2" />
-                                                    </Link>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                    {/* /product list */}
-                </div>
-            </div>
-        <AddPurchases />
-        <ImportPurchases />
-        <EditPurchases />
+  const columns = [
+    { title: "#", dataIndex: "index", width: 60 },
+    { title: "Order #", dataIndex: "order" },
+    { title: "Supplier", dataIndex: "supplier" },
+    { title: "Items", dataIndex: "items" },
+    { title: "Total", dataIndex: "total", render: (v) => `PKR ${v}` },
+    { title: "Status", dataIndex: "status", render: statusBadge },
+    { title: "Date", dataIndex: "date" },
+    {
+      title: "Action",
+      width: 110,
+      render: (_, row) => (
+        <div className="modern-crud-actions">
+          <button
+            type="button"
+            className="modern-crud-icon-btn"
+            onClick={() => onPrint(row.raw)}
+            title="Print purchase order"
+          >
+            <Printer size={15} />
+          </button>
+          <button
+            type="button"
+            className="modern-crud-icon-btn is-danger"
+            onClick={() => onDelete(row.id)}
+            title="Delete"
+          >
+            <Trash2 size={15} />
+          </button>
         </div>
-    )
-}
+      ),
+    },
+  ];
 
-export default PurchasesList
+  const filterTabs = [
+    { key: "all", label: "All", count: tabCounts.all },
+    { key: "pending", label: "Pending", count: tabCounts.pending, tone: "warn" },
+    { key: "received", label: "Received", count: tabCounts.received, tone: "ok" },
+    { key: "cancelled", label: "Cancelled", count: tabCounts.cancelled, tone: "danger" },
+  ];
+
+  return (
+    <>
+      <ModernCrudShell
+        title="Purchase Orders"
+        subtitle="Create and manage purchase orders."
+        icon={<ShoppingBag size={18} />}
+        addLabel="Add Purchase Order"
+        onAdd={() => setShowModal(true)}
+        excelResource="/purchaseOrders"
+        excelFileName="purchase-orders-export.xlsx"
+      >
+        <CrudListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search"
+          totalRecords={filtered.length}
+          showFiltersButton
+          filtersOpen={filtersOpen}
+          onToggleFilters={() => setFiltersOpen((v) => !v)}
+          stockFilterValue={activeTab}
+          onStockFilterChange={setActiveTab}
+          stockFilterOptions={filterTabs.map((t) => ({
+            value: t.key,
+            label: t.label,
+            count: t.count,
+            tone: t.tone,
+          }))}
+          tabs={filterTabs}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
+        <div className="modern-crud-table">
+          <Table
+            columns={columns}
+            dataSource={dataSource}
+            loading={loading}
+            pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: ["10", "20", "50"] }}
+            locale={{ emptyText: loading ? "Loading..." : "No purchase orders found" }}
+          />
+        </div>
+      </ModernCrudShell>
+
+      <Modal show={showModal} onHide={closeModal} centered size="lg" dialogClassName="modern-form-modal">
+        <Modal.Header closeButton>
+          <Modal.Title>Add Purchase Order</Modal.Title>
+        </Modal.Header>
+        <form onSubmit={onCreate}>
+          <Modal.Body>
+            <div className="row">
+              <div className="col-md-6 mb-3">
+                <label className="modern-form-label">
+                  Supplier <span className="text-danger">*</span>
+                </label>
+                <Select
+                  classNamePrefix="react-select"
+                  options={supplierOptions}
+                  value={supplier}
+                  onChange={setSupplier}
+                  placeholder="Select supplier"
+                />
+              </div>
+              <div className="col-md-6 mb-3">
+                <label className="modern-form-label">
+                  Product <span className="text-danger">*</span>
+                </label>
+                <Select
+                  classNamePrefix="react-select"
+                  options={productOptions}
+                  value={product}
+                  onChange={(opt) => {
+                    setProduct(opt);
+                    setPrice(opt?.price != null ? String(opt.price) : "");
+                  }}
+                  placeholder="Select product"
+                />
+              </div>
+              <div className="col-md-6 mb-3">
+                <label className="modern-form-label">Quantity</label>
+                <input
+                  className="form-control"
+                  type="number"
+                  min="1"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                />
+              </div>
+              <div className="col-md-6 mb-3">
+                <label className="modern-form-label">Unit price</label>
+                <input
+                  className="form-control"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                />
+              </div>
+            </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="light" className="modern-form-cancel" onClick={closeModal}>
+              Cancel
+            </Button>
+            <Button type="submit" className="modern-form-submit">
+              Create Purchase Order
+            </Button>
+          </Modal.Footer>
+        </form>
+      </Modal>
+    </>
+  );
+};
+
+export default PurchasesList;

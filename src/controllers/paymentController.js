@@ -244,3 +244,27 @@ exports.cancelPayment = async (req, res) => {
     res.status(err.message === 'Payment not found' ? 404 : 500).json({ error: err.message });
   }
 };
+
+exports.exportPaymentsToExcel = async (req, res) => {
+  try {
+    const { sendExcel } = require('../utils/excelHelpers');
+    const adminId = getAdminId(req.user);
+    const payments = await Payment.find({ admin_id: adminId, is_deleted: { $ne: true } })
+      .populate('customer', 'name')
+      .populate('supplier', 'name')
+      .lean();
+    const rows = payments.map((p) => ({
+      payment_no: p.payment_no || '',
+      payment_type: p.payment_type || '',
+      party_name: p.party_name || p.customer?.name || p.supplier?.name || '',
+      reference_no: p.reference_no || '',
+      paid_amount: p.paid_amount ?? 0,
+      payment_method: p.payment_method || '',
+      status: p.status || '',
+      payment_date: p.payment_date ? new Date(p.payment_date).toISOString().slice(0, 10) : '',
+    }));
+    return sendExcel(res, rows, 'payments-export.xlsx');
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};

@@ -20,8 +20,13 @@ function getInvoiceLogosDir() {
   return ensureDir(path.join(getUploadsRoot(), 'invoice-logos'));
 }
 
+function getSidebarLogosDir() {
+  return ensureDir(path.join(getUploadsRoot(), 'sidebar-logos'));
+}
+
 module.exports = {
   getUploadsRoot,
   getInvoiceLogosDir,
+  getSidebarLogosDir,
   ensureDir,
 };

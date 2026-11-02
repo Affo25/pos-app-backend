@@ -117,7 +117,8 @@ import PaymentGateway from "../feature-module/settings/financialsettings/payment
 import BankSetting from "../feature-module/settings/financialsettings/banksetting";
 import Customers from "../feature-module/people/customers";
 import Suppliers from "../feature-module/people/suppliers";
-import StoreList from "../core/modals/peoples/storelist";
+import BranchProfiles from "../feature-module/people/branchprofiles";
+import PaymentsList from "../feature-module/finance/paymentslist";
 import Managestock from "../feature-module/stock/managestock";
 import StockAdjustment from "../feature-module/stock/stockAdjustment";
 import StockTransfer from "../feature-module/stock/stockTransfer";
@@ -178,6 +179,7 @@ import Blankpage from "../feature-module/pages/blankpage";
 import Comingsoon from "../feature-module/pages/comingsoon";
 import Undermaintainence from "../feature-module/pages/undermaintainence";
 import Users from "../feature-module/usermanagement/users";
+import UserDetails from "../feature-module/usermanagement/userdetails";
 import RolesPermissions from "../feature-module/usermanagement/rolespermissions";
 import Permissions from "../feature-module/usermanagement/permissions";
 import DeleteAccount from "../feature-module/usermanagement/deleteaccount";
@@ -1019,7 +1021,14 @@ export const publicRoutes = [
     id: 86,
     path: routes.storelist,
     name: "storelist",
-    element: <StoreList />,
+    element: <BranchProfiles />,
+    route: Route,
+  },
+  {
+    id: "payments-list",
+    path: routes.payments,
+    name: "payments",
+    element: <PaymentsList />,
     route: Route,
   },
   {
@@ -1293,6 +1302,13 @@ export const publicRoutes = [
     path: routes.users,
     name: "users",
     element: <Users />,
+    route: Route,
+  },
+  {
+    id: "104b",
+    path: routes.userDetails,
+    name: "userDetails",
+    element: <UserDetails />,
     route: Route,
   },
   {

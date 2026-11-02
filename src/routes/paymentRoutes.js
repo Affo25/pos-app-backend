@@ -3,6 +3,7 @@ const router = express.Router();
 const paymentController = require('../controllers/paymentController');
 const { protect } = require('../middlewares/authMiddleware');
 
+router.get('/export-excel', protect, paymentController.exportPaymentsToExcel);
 router.get('/', protect, paymentController.getPayments);
 router.get('/:id', protect, paymentController.getPaymentById);
 router.post('/', protect, paymentController.createPayment);

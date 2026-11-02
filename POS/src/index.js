@@ -10,6 +10,8 @@ import '../src/style/css/line-awesome.min.css'
 import "../src/style/scss/main.scss";
 import '../src/style/icons/fontawesome/css/fontawesome.min.css'
 import '../src/style/icons/fontawesome/css/all.min.css'
+import '../src/style/css/modern-crud.css'
+import '../src/style/css/pharmly-theme.css'
 
 
 import { Provider } from "react-redux";

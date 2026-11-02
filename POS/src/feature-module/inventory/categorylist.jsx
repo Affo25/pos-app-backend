@@ -1,324 +1,237 @@
-import React, { useState } from 'react'
-import { OverlayTrigger, Tooltip } from 'react-bootstrap';
-import ImageWithBasePath from '../../core/img/imagewithbasebath';
-import { Link } from 'react-router-dom';
-import { ChevronUp, Filter, PlusCircle, RotateCcw, Sliders, StopCircle, Zap } from 'feather-icons-react/build/IconComponents';
-import { useDispatch, useSelector } from 'react-redux';
-import { setToogleHeader } from '../../core/redux/action';
-import Select from 'react-select';
-import { DatePicker } from 'antd';
-import AddCategoryList from '../../core/modals/inventory/addcategorylist';
-import EditCategoryList from '../../core/modals/inventory/editcategorylist';
-import withReactContent from 'sweetalert2-react-content';
-import Swal from 'sweetalert2';
-import Table from '../../core/pagination/datatable'
+import React, { useEffect, useMemo, useState } from "react";
+import { Table } from "antd";
+import { Modal, Button } from "react-bootstrap";
+import { useDispatch, useSelector } from "react-redux";
+import { Edit, Grid, Trash2 } from "feather-icons-react/build/IconComponents";
+import Swal from "sweetalert2";
+import withReactContent from "sweetalert2-react-content";
+import dayjs from "dayjs";
+import CrudListToolbar from "../../core/components/CrudListToolbar";
+import ModernCrudShell from "../../core/components/ModernCrudShell";
+import {
+  createCategoryAction,
+  deleteCategoryAction,
+  fetchAllCategoriesAction,
+  updateCategoryAction,
+} from "../../redux/categories/categorySlice";
+
+const empty = { name: "", description: "" };
 
 const CategoryList = () => {
+  const dispatch = useDispatch();
+  const MySwal = withReactContent(Swal);
+  const { categories, loading } = useSelector((state) => state.categories);
 
-    const dispatch = useDispatch();
-    const data = useSelector((state) => state.toggle_header);
-    const dataSource = useSelector((state) => state.categotylist_data);
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState(empty);
+  const [editId, setEditId] = useState(null);
+  const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState("all");
+  const [filtersOpen, setFiltersOpen] = useState(true);
 
-    const [isFilterVisible, setIsFilterVisible] = useState(false);
-    const toggleFilterVisibility = () => {
-        setIsFilterVisible((prevVisibility) => !prevVisibility);
+  useEffect(() => {
+    dispatch(fetchAllCategoriesAction());
+  }, [dispatch]);
+
+  const rows = Array.isArray(categories) ? categories : [];
+
+  const tabCounts = useMemo(
+    () => ({
+      all: rows.length,
+      described: rows.filter((c) => !!String(c.description || "").trim()).length,
+      plain: rows.filter((c) => !String(c.description || "").trim()).length,
+    }),
+    [rows],
+  );
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter((c) => {
+      const hay = `${c.name || ""} ${c.description || ""}`.toLowerCase();
+      if (q && !hay.includes(q)) return false;
+      const hasDesc = !!String(c.description || "").trim();
+      if (activeTab === "described" && !hasDesc) return false;
+      if (activeTab === "plain" && hasDesc) return false;
+      return true;
+    });
+  }, [rows, search, activeTab]);
+
+  const openCreate = () => {
+    setEditId(null);
+    setForm(empty);
+    setShowModal(true);
+  };
+
+  const openEdit = (row) => {
+    setEditId(row._id);
+    setForm({ name: row.name || "", description: row.description || "" });
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditId(null);
+    setForm(empty);
+  };
+
+  const onSubmit = (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    const payload = {
+      name: form.name.trim(),
+      description: form.description.trim() || undefined,
     };
-    const [selectedDate, setSelectedDate] = useState(new Date());
-    const handleDateChange = (date) => {
-        setSelectedDate(date);
-    };
+    if (editId) dispatch(updateCategoryAction(editId, payload));
+    else dispatch(createCategoryAction(payload));
+    closeModal();
+  };
 
+  const onDelete = (id) => {
+    MySwal.fire({
+      title: "Delete category?",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete",
+    }).then((result) => {
+      if (result.isConfirmed) dispatch(deleteCategoryAction(id));
+    });
+  };
 
-    const oldandlatestvalue = [
-        { value: 'date', label: 'Sort by Date' },
-        { value: 'newest', label: 'Newest' },
-        { value: 'oldest', label: 'Oldest' },
-    ];
-    const category = [
-        { value: 'chooseCategory', label: 'Choose Category' },
-        { value: 'laptop', label: 'Laptop' },
-        { value: 'electronics', label: 'Electronics' },
-        { value: 'shoe', label: 'Shoe' },
-    ];
-    const status = [
-        { value: 'chooseStatus', label: 'Choose Status' },
-        { value: 'active', label: 'Active' },
-        { value: 'inactive', label: 'Inactive' },
-    ];
+  const dataSource = useMemo(
+    () =>
+      filtered.map((c, i) => ({
+        key: c._id || String(i),
+        index: i + 1,
+        ...c,
+        created: c.createdAt ? dayjs(c.createdAt).format("YYYY-MM-DD") : "-",
+      })),
+    [filtered],
+  );
 
-    const renderTooltip = (props) => (
-        <Tooltip id="pdf-tooltip" {...props}>
-            Pdf
-        </Tooltip>
-    );
-    const renderExcelTooltip = (props) => (
-        <Tooltip id="excel-tooltip" {...props}>
-            Excel
-        </Tooltip>
-    );
-    const renderPrinterTooltip = (props) => (
-        <Tooltip id="printer-tooltip" {...props}>
-            Printer
-        </Tooltip>
-    );
-    const renderRefreshTooltip = (props) => (
-        <Tooltip id="refresh-tooltip" {...props}>
-            Refresh
-        </Tooltip>
-    );
-    const renderCollapseTooltip = (props) => (
-        <Tooltip id="refresh-tooltip" {...props}>
-            Collapse
-        </Tooltip>
-    )
-
-    const columns = [
-
-        {
-            title: "Category",
-            dataIndex: "category",
-            sorter: (a, b) => a.category.length - b.category.length,
-        },
-        {
-            title: "Category Slug",
-            dataIndex: "categoryslug",
-            sorter: (a, b) => a.categoryslug.length - b.categoryslug.length,
-        },
-        {
-            title: "Created On",
-            dataIndex: "createdon",
-            sorter: (a, b) => a.createdon.length - b.createdon.length,
-        },
-        {
-            title: "Status",
-            dataIndex: "status",
-            render: (text) => (
-                <span className="badge badge-linesuccess">
-                    <Link to="#"> {text}</Link>
-                </span>
-            ),
-            sorter: (a, b) => a.status.length - b.status.length,
-        },
-        {
-            title: 'Actions',
-            dataIndex: 'actions',
-            key: 'actions',
-            render: () => (
-                <td className="action-table-data">
-                    <div className="edit-delete-action">
-                        <Link className="me-2 p-2" to="#" data-bs-toggle="modal" data-bs-target="#edit-category">
-                            <i data-feather="edit" className="feather-edit"></i>
-                        </Link>
-                        <Link className="confirm-text p-2" to="#"  >
-                            <i data-feather="trash-2" className="feather-trash-2" onClick={showConfirmationAlert}></i>
-                        </Link>
-                    </div>
-                </td>
-            )
-        },
-    ]
-    const MySwal = withReactContent(Swal);
-
-    const showConfirmationAlert = () => {
-        MySwal.fire({
-            title: 'Are you sure?',
-            text: 'You won\'t be able to revert this!',
-            showCancelButton: true,
-            confirmButtonColor: '#00ff00',
-            confirmButtonText: 'Yes, delete it!',
-            cancelButtonColor: '#ff0000',
-            cancelButtonText: 'Cancel',
-        }).then((result) => {
-            if (result.isConfirmed) {
-
-                MySwal.fire({
-                    title: 'Deleted!',
-                    text: 'Your file has been deleted.',
-                    className: "btn btn-success",
-                    confirmButtonText: 'OK',
-                    customClass: {
-                        confirmButton: 'btn btn-success',
-                    },
-                });
-            } else {
-                MySwal.close();
-            }
-
-        });
-    };
-    return (
-        <div>
-            <div className="page-wrapper">
-                <div className="content">
-                    <div className="page-header">
-                        <div className="add-item d-flex">
-                            <div className="page-title">
-                                <h4>Category</h4>
-                                <h6>Manage your categories</h6>
-                            </div>
-                        </div>
-                        <ul className="table-top-head">
-                            <li>
-                                <OverlayTrigger placement="top" overlay={renderTooltip}>
-                                    <Link>
-                                        <ImageWithBasePath src="assets/img/icons/pdf.svg" alt="img" />
-                                    </Link>
-                                </OverlayTrigger>
-                            </li>
-                            <li>
-                                <OverlayTrigger placement="top" overlay={renderExcelTooltip}>
-                                    <Link data-bs-toggle="tooltip" data-bs-placement="top">
-                                        <ImageWithBasePath src="assets/img/icons/excel.svg" alt="img" />
-                                    </Link>
-                                </OverlayTrigger>
-                            </li>
-                            <li>
-                                <OverlayTrigger placement="top" overlay={renderPrinterTooltip}>
-
-                                    <Link data-bs-toggle="tooltip" data-bs-placement="top">
-                                        <i data-feather="printer" className="feather-printer" />
-                                    </Link>
-                                </OverlayTrigger>
-                            </li>
-                            <li>
-                                <OverlayTrigger placement="top" overlay={renderRefreshTooltip}>
-
-                                    <Link data-bs-toggle="tooltip" data-bs-placement="top">
-                                        <RotateCcw />
-                                    </Link>
-                                </OverlayTrigger>
-                            </li>
-                            <li>
-                                <OverlayTrigger placement="top" overlay={renderCollapseTooltip}>
-
-                                    <Link
-                                        data-bs-toggle="tooltip"
-                                        data-bs-placement="top"
-                                        id="collapse-header"
-                                        className={data ? "active" : ""}
-                                        onClick={() => { dispatch(setToogleHeader(!data)) }}
-                                    >
-                                        <ChevronUp />
-                                    </Link>
-                                </OverlayTrigger>
-                            </li>
-                        </ul>
-                        <div className="page-btn">
-                            <Link
-                                to="#"
-                                className="btn btn-added"
-                                data-bs-toggle="modal"
-                                data-bs-target="#add-category"
-                            >
-                                <PlusCircle className="me-2" />
-                                Add New Category
-                            </Link>
-                        </div>
-                    </div>
-                    {/* /product list */}
-                    <div className="card table-list-card">
-                        <div className="card-body">
-                            <div className="table-top">
-                                <div className="search-set">
-                                    <div className="search-input">
-                                        <input
-                                            type="text"
-                                            placeholder="Search"
-                                            className="form-control form-control-sm formsearch"
-                                        />
-                                        <Link to className="btn btn-searchset">
-                                            <i data-feather="search" className="feather-search" />
-                                        </Link>
-                                    </div>
-                                </div>
-                                <div className="search-path">
-                                    <Link className={`btn btn-filter ${isFilterVisible ? "setclose" : ""}`} id="filter_search">
-                                        <Filter
-                                            className="filter-icon"
-                                            onClick={toggleFilterVisibility}
-                                        />
-                                        <span onClick={toggleFilterVisibility}>
-                                            <ImageWithBasePath src="assets/img/icons/closes.svg" alt="img" />
-                                        </span>
-                                    </Link>
-                                </div>
-                                <div className="form-sort">
-                                    <Sliders className="info-img" />
-                                    <Select
-                                        className="select"
-                                        options={oldandlatestvalue}
-                                        placeholder="Newest"
-                                    />
-                                </div>
-                            </div>
-                            {/* /Filter */}
-                            <div
-                                className={`card${isFilterVisible ? " visible" : ""}`}
-                                id="filter_inputs"
-                                style={{ display: isFilterVisible ? "block" : "none" }}
-                            >
-                                <div className="card-body pb-0">
-                                    <div className="row">
-                                        <div className="col-lg-3 col-sm-6 col-12">
-                                            <div className="input-blocks">
-
-                                                <Zap className="info-img" />
-                                                <Select
-                                                    options={category}
-                                                    className="select"
-                                                    placeholder="Choose Category"
-                                                />
-
-                                            </div>
-                                        </div>
-                                        <div className="col-lg-3 col-sm-6 col-12">
-                                            <div className="input-blocks">
-                                                <i data-feather="calendar" className="info-img" />
-                                                <div className="input-groupicon">
-                                                    <DatePicker
-                                                        selected={selectedDate}
-                                                        onChange={handleDateChange}
-                                                        type="date"
-                                                        className="filterdatepicker"
-                                                        dateFormat="dd-MM-yyyy"
-                                                        placeholder='Choose Date'
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="col-lg-3 col-sm-6 col-12">
-                                            <div className="input-blocks">
-                                                <StopCircle className="info-img" />
-
-                                                <Select options={status} className="select" placeholder="Choose Status" />
-
-                                            </div>
-                                        </div>
-                                        <div className="col-lg-3 col-sm-6 col-12 ms-auto">
-                                            <div className="input-blocks">
-                                                <Link className="btn btn-filters ms-auto">
-                                                    {" "}
-                                                    <i data-feather="search" className="feather-search" />{" "}
-                                                    Search{" "}
-                                                </Link>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            {/* /Filter */}
-                            <div className="table-responsive">
-                            <Table columns={columns} dataSource={dataSource} />  
-                            </div>
-                        </div>
-                    </div>
-                    {/* /product list */}
-                </div>
-            </div>
-            <AddCategoryList />
-            <EditCategoryList />
+  const columns = [
+    { title: "#", dataIndex: "index", width: 60 },
+    {
+      title: "Category",
+      dataIndex: "name",
+      sorter: (a, b) => String(a.name).localeCompare(String(b.name)),
+    },
+    {
+      title: "Description",
+      dataIndex: "description",
+      render: (v) => v || "-",
+    },
+    {
+      title: "Created",
+      dataIndex: "created",
+      sorter: (a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")),
+    },
+    {
+      title: "Action",
+      width: 110,
+      render: (_, row) => (
+        <div className="modern-crud-actions">
+          <button type="button" className="modern-crud-icon-btn" onClick={() => openEdit(row)} title="Edit">
+            <Edit size={15} />
+          </button>
+          <button
+            type="button"
+            className="modern-crud-icon-btn is-danger"
+            onClick={() => onDelete(row._id)}
+            title="Delete"
+          >
+            <Trash2 size={15} />
+          </button>
         </div>
-    )
-}
+      ),
+    },
+  ];
 
-export default CategoryList
+  return (
+    <>
+      <ModernCrudShell
+        title="Categories"
+        subtitle="Manage your categories."
+        icon={<Grid size={18} />}
+        addLabel="Add Category"
+        onAdd={openCreate}
+        excelResource="/categorys"
+        excelFileName="categories-export.xlsx"
+        canImportExcel
+        onExcelImported={() => dispatch(fetchAllCategoriesAction())}
+      >
+        <CrudListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search"
+          totalRecords={filtered.length}
+          showFiltersButton
+          filtersOpen={filtersOpen}
+          onToggleFilters={() => setFiltersOpen((v) => !v)}
+          stockFilterValue={activeTab}
+          onStockFilterChange={setActiveTab}
+          stockFilterOptions={[
+            { value: "all", label: "All", count: tabCounts.all },
+            { value: "described", label: "With Description", count: tabCounts.described, tone: "ok" },
+            { value: "plain", label: "No Description", count: tabCounts.plain, tone: "warn" },
+          ]}
+          tabs={[
+            { key: "all", label: "All", count: tabCounts.all },
+            { key: "described", label: "With Description", count: tabCounts.described, tone: "ok" },
+            { key: "plain", label: "No Description", count: tabCounts.plain, tone: "warn" },
+          ]}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
+        <div className="modern-crud-table">
+          <Table
+            columns={columns}
+            dataSource={dataSource}
+            loading={loading}
+            pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: ["10", "20", "50"] }}
+            locale={{ emptyText: loading ? "Loading..." : "No categories found" }}
+          />
+        </div>
+      </ModernCrudShell>
+
+      <Modal show={showModal} onHide={closeModal} centered dialogClassName="modern-form-modal">
+        <Modal.Header closeButton>
+          <Modal.Title>{editId ? "Edit Category" : "Add Category"}</Modal.Title>
+        </Modal.Header>
+        <form onSubmit={onSubmit}>
+          <Modal.Body>
+            <div className="mb-3">
+              <label className="modern-form-label">
+                Name <span className="text-danger">*</span>
+              </label>
+              <input
+                className="form-control"
+                value={form.name}
+                onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="mb-3">
+              <label className="modern-form-label">Description</label>
+              <textarea
+                className="form-control"
+                rows={4}
+                placeholder="Optional details"
+                value={form.description}
+                onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+              />
+            </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="light" className="modern-form-cancel" onClick={closeModal}>
+              Cancel
+            </Button>
+            <Button type="submit" className="modern-form-submit">
+              {editId ? "Update Category" : "Create Category"}
+            </Button>
+          </Modal.Footer>
+        </form>
+      </Modal>
+    </>
+  );
+};
+
+export default CategoryList;

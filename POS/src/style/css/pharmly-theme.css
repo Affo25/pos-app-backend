@@ -1,0 +1,264 @@
+/* Pharmly theme — dark forest sidebar + lime accents */
+:root {
+  --ph-sidebar: #0d2b26;
+  --ph-sidebar-soft: #143832;
+  --ph-lime: #c4f45d;
+  --ph-lime-hover: #b3e04c;
+  --ph-lime-text: #0d2b26;
+  --ph-muted: #9eb3ad;
+  --ph-bg: #f3f5f4;
+}
+
+/* Sidebar */
+.sidebar,
+.sidebars,
+.sidebar .slimScrollDiv,
+.sidebar .sidebar-inner {
+  background: var(--ph-sidebar) !important;
+  border-right-color: transparent !important;
+}
+
+.sidebar .sidebar-menu .submenu-hdr {
+  color: var(--ph-muted) !important;
+}
+
+.sidebar .sidebar-menu > ul > li > a,
+.sidebar .sidebar-menu .submenu-open > ul > li > a,
+.sidebar .sidebar-menu .submenu-open > ul > li a span {
+  color: #e8f0ee !important;
+}
+
+.sidebar .sidebar-menu > ul > li > a svg,
+.sidebar .sidebar-menu .submenu-open > ul > li > a svg {
+  color: var(--ph-muted) !important;
+}
+
+.sidebar .sidebar-menu > ul > li > a:hover,
+.sidebar .sidebar-menu > ul > li > a.active,
+.sidebar .sidebar-menu > ul > li.active > a,
+.sidebar .sidebar-menu .submenu-open > ul > li.active > a,
+.sidebar .sidebar-menu .submenu-open > ul > li > a.active,
+.sidebar .sidebar-menu .submenu-open > ul > li > a:hover {
+  background: var(--ph-lime) !important;
+  color: var(--ph-lime-text) !important;
+  border-radius: 10px !important;
+}
+
+.sidebar .sidebar-menu > ul > li > a:hover span,
+.sidebar .sidebar-menu > ul > li > a.active span,
+.sidebar .sidebar-menu > ul > li.active > a span,
+.sidebar .sidebar-menu .submenu-open > ul > li.active > a span,
+.sidebar .sidebar-menu .submenu-open > ul > li > a.active span,
+.sidebar .sidebar-menu .submenu-open > ul > li > a:hover span,
+.sidebar .sidebar-menu > ul > li > a:hover svg,
+.sidebar .sidebar-menu > ul > li > a.active svg,
+.sidebar .sidebar-menu > ul > li.active > a svg,
+.sidebar .sidebar-menu .submenu-open > ul > li.active > a svg,
+.sidebar .sidebar-menu .submenu-open > ul > li > a.active svg,
+.sidebar .sidebar-menu .submenu-open > ul > li > a:hover svg {
+  color: var(--ph-lime-text) !important;
+}
+
+.sidebar .sidebar-menu .submenu ul {
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.sidebar .sidebar-menu .submenu ul li a {
+  color: var(--ph-muted) !important;
+}
+
+.sidebar .sidebar-menu .submenu ul li a:hover,
+.sidebar .sidebar-menu .submenu ul li a.active {
+  color: var(--ph-lime) !important;
+  background: transparent !important;
+}
+
+.sidebar .sidebar-menu .submenu ul li a::after,
+.sidebar .sidebar-menu .submenu-open ul li a.active::after,
+.sidebar .sidebar-menu .submenu-open ul li a:hover::after {
+  background: var(--ph-lime) !important;
+  border-color: var(--ph-sidebar) !important;
+}
+
+.sidebar .sidebar-menu .menu-arrow {
+  background: rgba(196, 244, 93, 0.15) !important;
+}
+
+.sidebar .sidebar-menu .menu-arrow::before {
+  border-color: var(--ph-lime) !important;
+}
+
+.sidebar .sidebar-menu > ul > li > a.active .menu-arrow,
+.sidebar .sidebar-menu > ul > li > a:hover .menu-arrow {
+  background: rgba(13, 43, 38, 0.12) !important;
+}
+
+.sidebar .sidebar-menu > ul > li > a.active .menu-arrow::before,
+.sidebar .sidebar-menu > ul > li > a:hover .menu-arrow::before {
+  border-color: var(--ph-lime-text) !important;
+}
+
+/* Header accents */
+.header .header-left .logo,
+#toggle_btn:hover,
+.header .user-menu > a:hover {
+  color: var(--ph-sidebar);
+}
+
+/* Primary / add buttons */
+.btn-primary,
+.btn-added,
+.btn.btn-added,
+.btn-submit,
+button.btn-primary,
+a.btn-primary {
+  background: var(--ph-lime) !important;
+  border-color: var(--ph-lime) !important;
+  color: var(--ph-lime-text) !important;
+  font-weight: 700;
+}
+
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-added:hover,
+.btn-added:focus,
+.btn-submit:hover,
+.btn-submit:focus {
+  background: var(--ph-lime-hover) !important;
+  border-color: var(--ph-lime-hover) !important;
+  color: var(--ph-lime-text) !important;
+}
+
+.btn-primary:disabled,
+.btn-added:disabled {
+  background: #d9ecc0 !important;
+  border-color: #d9ecc0 !important;
+  color: #4a635c !important;
+}
+
+/* Ant Design accents */
+.ant-btn-primary {
+  background: var(--ph-lime) !important;
+  border-color: var(--ph-lime) !important;
+  color: var(--ph-lime-text) !important;
+}
+
+.ant-pagination-item-active {
+  border-color: var(--ph-lime) !important;
+}
+
+.ant-pagination-item-active a {
+  color: var(--ph-lime-text) !important;
+  background: var(--ph-lime) !important;
+}
+
+.ant-checkbox-checked .ant-checkbox-inner,
+.ant-switch-checked {
+  background-color: var(--ph-sidebar) !important;
+  border-color: var(--ph-sidebar) !important;
+}
+
+/* Links & focus */
+a {
+  --bs-link-color: #1a6b55;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: #8fbf6a !important;
+  box-shadow: 0 0 0 0.2rem rgba(196, 244, 93, 0.35) !important;
+}
+
+/* Soft page background */
+.page-wrapper {
+  background: var(--ph-bg);
+}
+
+/* Collapsible main menus */
+.sidebar .sidebar-menu > ul > li.submenu > a {
+  display: flex !important;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 10px 14px !important;
+  border-radius: 10px !important;
+  color: #e8f0ee !important;
+  margin-bottom: 4px;
+}
+
+.sidebar .sidebar-menu > ul > li.submenu > a .menu-arrow {
+  margin-left: auto;
+  transition: transform 0.2s ease;
+}
+
+.sidebar .sidebar-menu > ul > li.submenu > a.subdrop .menu-arrow {
+  transform: rotate(90deg);
+}
+
+.sidebar .sidebar-menu > ul > li.submenu > ul {
+  padding: 4px 0 10px 8px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  margin-bottom: 8px !important;
+}
+
+.sidebar .sidebar-menu > ul > li.submenu > ul > li > a {
+  display: flex !important;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 8px 12px 8px 16px !important;
+  border-radius: 8px !important;
+  color: var(--ph-muted) !important;
+  font-size: 0.92rem;
+}
+
+.sidebar .sidebar-menu > ul > li.submenu > ul > li > a span {
+  color: inherit !important;
+}
+
+.sidebar .sidebar-menu > ul > li.submenu > ul > li > a svg {
+  width: 15px;
+  height: 15px;
+  color: inherit !important;
+}
+
+.sidebar .sidebar-menu > ul > li.submenu > ul > li > a:hover,
+.sidebar .sidebar-menu > ul > li.submenu > ul > li > a.active {
+  background: var(--ph-lime) !important;
+  color: var(--ph-lime-text) !important;
+}
+
+/* Brand logo overrides */
+.header .header-left .logo img.brand-sidebar-logo,
+.header .header-left .logo-small img.brand-sidebar-logo {
+  max-height: 40px;
+  width: auto;
+  object-fit: contain;
+}
+.header .header-left .logo-small img.brand-sidebar-logo.is-small {
+  max-height: 32px;
+}
+
+.sidebar-brand-block {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem 1rem;
+  margin-bottom: 0.35rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.sidebar-brand-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #fff;
+  flex-shrink: 0;
+}
+.sidebar-brand-name {
+  color: #e8f0ee;
+  font-weight: 700;
+  font-size: 0.92rem;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

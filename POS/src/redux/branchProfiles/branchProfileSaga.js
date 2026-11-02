@@ -2,41 +2,51 @@ import { all, takeLatest, put, call } from "redux-saga/effects";
 import { toast } from "react-toastify";
 import * as branchProfileService from "./branchProfileService";
 import * as actions from "./branchProfileSlice";
-
-function* handleApiCall(apiFn, ...args) {
-  try {
-    yield put(actions.operationStart());
-    const result = yield call(apiFn, ...args);
-    yield put(actions.operationSuccess());
-    return result;
-  } catch (error) {
-    yield put(actions.operationFailure(error.message));
-    toast.error(error.message);
-    throw error;
-  }
-}
+import { handleApiCall } from "../utils/sagaHelpers";
 
 function* fetchAllBranchProfiles() {
-  const branchProfiles = yield handleApiCall(
+  const { ok, result } = yield call(
+    handleApiCall,
+    actions,
     branchProfileService.fetchAllBranchProfiles,
   );
-  yield put(actions.fetchBranchProfilesSuccess(branchProfiles));
+  if (!ok) return;
+  yield put(actions.fetchBranchProfilesSuccess(result));
 }
 
 function* createBranchProfile({ payload }) {
-  yield handleApiCall(branchProfileService.createBranchProfile, payload);
+  const { ok } = yield call(
+    handleApiCall,
+    actions,
+    branchProfileService.createBranchProfile,
+    payload,
+  );
+  if (!ok) return;
   toast.success("Branch profile created successfully");
   yield call(fetchAllBranchProfiles);
 }
 
 function* updateBranchProfile({ payload: { id, data } }) {
-  yield handleApiCall(branchProfileService.updateBranchProfile, id, data);
+  const { ok } = yield call(
+    handleApiCall,
+    actions,
+    branchProfileService.updateBranchProfile,
+    id,
+    data,
+  );
+  if (!ok) return;
   yield call(fetchAllBranchProfiles);
   toast.success("Branch profile updated successfully");
 }
 
 function* deleteBranchProfile({ payload: id }) {
-  yield handleApiCall(branchProfileService.deleteBranchProfile, id);
+  const { ok } = yield call(
+    handleApiCall,
+    actions,
+    branchProfileService.deleteBranchProfile,
+    id,
+  );
+  if (!ok) return;
   yield call(fetchAllBranchProfiles);
   toast.success("Branch profile deleted successfully");
 }
