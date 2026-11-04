@@ -113,10 +113,10 @@ const GeneralSettings = () => {
     const design = settings?.invoiceDesign || {};
     const button = design.buttonColor || design.primaryColor || emptyForm.buttonColor;
     const sidebar = design.sidebarColor || design.secondaryColor || emptyForm.sidebarColor;
+    const saleTpl = design.saleTemplate || design.template || "modern_sale_a4";
     setForm({
       ...emptyForm,
       ...design,
-      template: design.template || "pos_receipt",
       posLayout: design.posLayout === "gridview" ? "gridview" : "tabular",
       primaryColor: button,
       buttonColor: button,
@@ -127,9 +127,9 @@ const GeneralSettings = () => {
       sidebarLogoUrl: design.sidebarLogoUrl || "",
       appLogoUrl: design.appLogoUrl || "",
       connectedPrinter: design.connectedPrinter || "",
-      saleTemplate: design.saleTemplate || design.template || "modern_sale_a4",
+      saleTemplate: saleTpl,
       purchaseOrderTemplate: design.purchaseOrderTemplate || "modern_po_a4",
-      template: design.saleTemplate || design.template || "modern_sale_a4",
+      template: saleTpl,
     });
   }, [settings]);
 

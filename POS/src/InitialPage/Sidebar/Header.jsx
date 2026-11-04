@@ -1,6 +1,6 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import Cookies from "js-cookie";
 import FeatherIcon from "feather-icons-react";
@@ -30,6 +30,7 @@ const Header = () => {
   const route = all_routes;
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [toggle, SetToggle] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const settings = useSelector((state) => state.settings?.settings);
@@ -161,13 +162,11 @@ const Header = () => {
     document?.querySelector("html")?.classList?.toggle("menu-opened");
   };
 
-  let pathname = location.pathname;
-
   const exclusionArray = [
     "/reactjs/template/dream-pos/index-three",
     "/reactjs/template/dream-pos/index-one",
   ];
-  if (exclusionArray.indexOf(window.location.pathname) >= 0) {
+  if (exclusionArray.indexOf(pathname) >= 0) {
     return "";
   }
 
