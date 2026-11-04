@@ -4,11 +4,11 @@ const Products = require('../models/Products');
 const {
   enrichPurchaseOrder,
   netOrderTotal,
-  returnedQtyForProduct,
-  orderedQtyForProduct,
   generatePurchaseOrderNumber,
+  applyReturnToPurchaseOrderItems,
 } = require('../utils/purchaseOrderHelpers');
 const { recordPaymentFromOrder, syncPaymentsReferenceForOrder } = require('../utils/paymentHelpers');
+const { resolveAdminId } = require('../utils/resolveAdminId');
 
 const populateOpts = [
   { path: 'supplier_id', select: 'name address phone email opening_balance opening_balance_note' },
@@ -36,8 +36,8 @@ const checkPurchaseOrderAccess = async (id, user) => {
   const purchaseOrder = await PurchaseOrder.findById(id);
   if (!purchaseOrder) throw new Error('PurchaseOrder not found');
 
-  const loggedInAdminId = user.user_type === 'admin' ? user._id : user.admin_id;
-  if (purchaseOrder.admin_id.toString() !== loggedInAdminId.toString()) {
+  const loggedInAdminId = resolveAdminId(user);
+  if (!loggedInAdminId || purchaseOrder.admin_id.toString() !== loggedInAdminId.toString()) {
     throw new Error('Unauthorized access');
   }
 
@@ -72,7 +72,10 @@ function sanitizePayload(body) {
 
 exports.getNextOrderNumber = async (req, res) => {
   try {
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
+    if (!adminId) {
+      return res.status(400).json({ error: 'Could not resolve admin_id for this user' });
+    }
     const orderDate = req.query.order_date ? new Date(req.query.order_date) : new Date();
     const order_number = await generatePurchaseOrderNumber(adminId, orderDate);
     res.status(200).json({ order_number });
@@ -83,7 +86,10 @@ exports.getNextOrderNumber = async (req, res) => {
 
 exports.createPurchaseOrder = async (req, res) => {
   try {
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
+    if (!adminId) {
+      return res.status(400).json({ error: 'Could not resolve admin_id for this user' });
+    }
     const data = sanitizePayload({
       ...req.body,
       admin_id: adminId,
@@ -154,7 +160,10 @@ exports.createPurchaseOrder = async (req, res) => {
 
 exports.getPurchaseOrders = async (req, res) => {
   try {
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
+    if (!adminId) {
+      return res.status(400).json({ error: 'Could not resolve admin_id for this user' });
+    }
     const query = { admin_id: adminId };
 
     if (req.user.user_type === 'user') {
@@ -220,7 +229,7 @@ exports.updatePurchaseOrder = async (req, res) => {
     if (paid > prevPaid) {
       const netAfter = netOrderTotal(updated);
       await recordPaymentFromOrder({
-        adminId: req.user.user_type === 'admin' ? req.user._id : req.user.admin_id,
+        adminId: resolveAdminId(req.user),
         userId: req.user._id,
         paymentType: 'purchase',
         referenceType: 'purchase_order',
@@ -264,18 +273,20 @@ exports.addPurchaseOrderReturn = async (req, res) => {
       return res.status(400).json({ error: 'Quantity must be at least 1' });
     }
 
-    const ordered = orderedQtyForProduct(po, product_id);
-    const alreadyReturned = returnedQtyForProduct(po, product_id);
-    if (ordered <= 0) {
-      return res.status(400).json({ error: 'Product is not on this purchase order' });
+    // After prior returns, items[].quantity is already the remaining qty
+    const line = po.items.find(
+      (it) => String(it.product_id?._id || it.product_id) === String(product_id),
+    );
+    const remainingOnLine = Number(line?.quantity || 0);
+    if (!line || remainingOnLine <= 0) {
+      return res.status(400).json({ error: 'Product is not on this purchase order (or fully returned)' });
     }
-    if (alreadyReturned + qty > ordered) {
+    if (qty > remainingOnLine) {
       return res.status(400).json({
-        error: `Cannot return more than ordered (max ${ordered - alreadyReturned} remaining)`,
+        error: `Cannot return more than remaining quantity (max ${remainingOnLine})`,
       });
     }
 
-    const line = po.items.find((it) => String(it.product_id) === String(product_id));
     const returnPrice = unitPrice >= 0 ? unitPrice : Number(line?.price || 0);
 
     po.returns.push({
@@ -286,8 +297,11 @@ exports.addPurchaseOrderReturn = async (req, res) => {
       return_date: new Date(),
     });
 
+    // Reduce original line qty so list / view / edit stay in sync
+    applyReturnToPurchaseOrderItems(po, product_id, qty);
+
     const paid = Number(po.amount_paid || 0);
-    const net = netOrderTotal({ ...po.toObject(), returns: po.returns });
+    const net = netOrderTotal(po);
     if (paid > net) {
       po.amount_paid = net;
     }
@@ -324,7 +338,10 @@ exports.deletePurchaseOrder = async (req, res) => {
 exports.exportPurchaseOrdersToExcel = async (req, res) => {
   try {
     const { sendExcel } = require('../utils/excelHelpers');
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
+    if (!adminId) {
+      return res.status(400).json({ error: 'Could not resolve admin_id for this user' });
+    }
     const orders = await PurchaseOrder.find({ admin_id: adminId }).lean();
     const rows = orders.map((po) => ({
       order_number: po.order_number || '',

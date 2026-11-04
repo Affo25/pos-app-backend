@@ -10,6 +10,7 @@ import {
   fetchAllPaymentsAction,
 } from "../../redux/payments/paymentSlice";
 import CrudListToolbar from "../../core/components/CrudListToolbar";
+import { MoneyBadge } from "../../core/components/CrudValueBadge";
 import ModernCrudShell from "../../core/components/ModernCrudShell";
 
 const PaymentsList = () => {
@@ -99,10 +100,10 @@ const PaymentsList = () => {
     { title: "Type", dataIndex: "type" },
     { title: "Party", dataIndex: "party" },
     { title: "Reference", dataIndex: "reference" },
-    { title: "Paid", dataIndex: "paid", render: (v) => `PKR ${v}` },
-    { title: "Method", dataIndex: "method" },
+    { title: "Paid", dataIndex: "paid", render: (v) => <MoneyBadge value={v} tone="ok" prefix="PKR" /> },
+    { title: "Method", dataIndex: "method", render: (v) => <span className="mc-value-badge is-muted">{v}</span> },
     { title: "Status", dataIndex: "status", render: statusBadge },
-    { title: "Date", dataIndex: "date" },
+    { title: "Date", dataIndex: "date", render: (v) => <span className="mc-value-badge is-neutral">{v}</span> },
     {
       title: "Action",
       width: 80,
@@ -133,6 +134,7 @@ const PaymentsList = () => {
       title="Payments"
       subtitle="Payments recorded from sales and purchases."
       icon={<CreditCard size={18} />}
+      totalRecords={filtered.length}
       excelResource="/payments"
       excelFileName="payments-export.xlsx"
     >

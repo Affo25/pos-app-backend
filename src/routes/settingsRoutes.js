@@ -67,5 +67,16 @@ router.post(
   },
   settingsController.uploadSidebarLogo,
 );
+router.post(
+  '/app-logo',
+  protect,
+  (req, res, next) => {
+    uploadSidebar.single('file')(req, res, (err) => {
+      if (err) return res.status(400).json({ error: err.message || 'Invalid upload' });
+      next();
+    });
+  },
+  settingsController.uploadAppLogo,
+);
 
 module.exports = router;

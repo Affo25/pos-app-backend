@@ -2,7 +2,7 @@ import React from "react";
 import { Filter, Search, X } from "feather-icons-react/build/IconComponents";
 
 /**
- * Search + total records + category filter + optional Filters button / stock tabs.
+ * Search + optional status filter + optional date chips + Filters button / stock tabs.
  */
 const CrudListToolbar = ({
   search,
@@ -22,6 +22,17 @@ const CrudListToolbar = ({
   stockFilterValue,
   stockFilterOptions = [],
   onStockFilterChange,
+  dateMode,
+  onDateModeChange,
+  dateOptions = [
+    { value: "today", label: "Today" },
+    { value: "range", label: "Range" },
+    { value: "all", label: "All" },
+  ],
+  rangeFrom = "",
+  rangeTo = "",
+  onRangeFromChange,
+  onRangeToChange,
 }) => (
   <>
     <div className="modern-crud-toolbar">
@@ -35,11 +46,39 @@ const CrudListToolbar = ({
           aria-label={searchPlaceholder}
         />
       </div>
-      {typeof totalRecords === "number" ? (
-        <span className="modern-crud-total">Total records: {totalRecords}</span>
-      ) : null}
-
       <div className="modern-crud-toolbar-actions">
+        {typeof onDateModeChange === "function" && dateOptions.length ? (
+          <div className="sale-date-filters is-inline" role="group" aria-label="Date filter">
+            {dateOptions.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                className={`sale-date-chip${dateMode === opt.value ? " active" : ""}`}
+                onClick={() => onDateModeChange(opt.value)}
+              >
+                {opt.label}
+              </button>
+            ))}
+            {dateMode === "range" ? (
+              <div className="sale-date-range">
+                <input
+                  type="date"
+                  className="form-control form-control-sm"
+                  value={rangeFrom}
+                  onChange={(e) => onRangeFromChange?.(e.target.value)}
+                />
+                <span>to</span>
+                <input
+                  type="date"
+                  className="form-control form-control-sm"
+                  value={rangeTo}
+                  onChange={(e) => onRangeToChange?.(e.target.value)}
+                />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         {filterOptions.length ? (
           <div className="modern-crud-filter">
             <select

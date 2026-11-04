@@ -6,27 +6,11 @@ import * as Icon from "react-feather";
  */
 export const SidebarData = [
   {
-    label: "Main",
-    icon: <Icon.Home />,
-    submenu: true,
-    submenuOpen: true,
+    label: "Dashboard",
+    icon: <Icon.Grid />,
+    link: "/",
+    submenu: false,
     showSubRoute: false,
-    submenuItems: [
-      {
-        label: "Dashboard",
-        icon: <Icon.Grid />,
-        submenu: false,
-        showSubRoute: false,
-        link: "/",
-      },
-      {
-        label: "POS",
-        icon: <Icon.Monitor />,
-        submenu: false,
-        showSubRoute: false,
-        link: "/pos",
-      },
-    ],
   },
   {
     label: "Inventory",
@@ -46,6 +30,13 @@ export const SidebarData = [
         label: "Create Product",
         link: "/add-product",
         icon: <Icon.PlusSquare />,
+        showSubRoute: false,
+        submenu: false,
+      },
+      {
+        label: "Stock Management",
+        link: "/manage-stocks",
+        icon: <Icon.Database />,
         showSubRoute: false,
         submenu: false,
       },

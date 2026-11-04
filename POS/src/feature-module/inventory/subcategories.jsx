@@ -3,11 +3,13 @@ import { Table } from "antd";
 import { Modal, Button } from "react-bootstrap";
 import Select from "react-select";
 import { useDispatch, useSelector } from "react-redux";
-import { Edit, Layers, Trash2 } from "feather-icons-react/build/IconComponents";
+import { Edit, Eye, Layers, Trash2 } from "feather-icons-react/build/IconComponents";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
+import dayjs from "dayjs";
 import CrudListToolbar from "../../core/components/CrudListToolbar";
 import ModernCrudShell from "../../core/components/ModernCrudShell";
+import ModernViewDialog from "../../core/components/ModernViewDialog";
 import { fetchAllCategoriesAction } from "../../redux/categories/categorySlice";
 import {
   createSubCategoryAction,
@@ -31,6 +33,7 @@ const SubCategories = () => {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("all");
   const [filtersOpen, setFiltersOpen] = useState(true);
+  const [viewItem, setViewItem] = useState(null);
 
   useEffect(() => {
     dispatch(fetchAllCategoriesAction());
@@ -153,9 +156,17 @@ const SubCategories = () => {
     },
     {
       title: "Action",
-      width: 110,
+      width: 130,
       render: (_, row) => (
         <div className="modern-crud-actions">
+          <button
+            type="button"
+            className="modern-crud-icon-btn"
+            onClick={() => setViewItem(row)}
+            title="View"
+          >
+            <Eye size={15} />
+          </button>
           <button type="button" className="modern-crud-icon-btn" onClick={() => openEdit(row)} title="Edit">
             <Edit size={15} />
           </button>
@@ -183,6 +194,7 @@ const SubCategories = () => {
         title="Sub Categories"
         subtitle="Manage your sub categories."
         icon={<Layers size={18} />}
+        totalRecords={filtered.length}
         addLabel="Add Sub Category"
         onAdd={openCreate}
         excelResource="/subCategorys"
@@ -227,6 +239,47 @@ const SubCategories = () => {
           />
         </div>
       </ModernCrudShell>
+
+      <ModernViewDialog
+        show={Boolean(viewItem)}
+        onHide={() => setViewItem(null)}
+        title={viewItem?.name || "Sub Category"}
+        subtitle="Sub category details"
+        fields={[
+          { label: "Name", value: viewItem?.name },
+          {
+            label: "Category",
+            value: viewItem?.categoryName || categoryNameById[viewItem?.category_id],
+          },
+          { label: "Description", value: viewItem?.description, span: 2 },
+          {
+            label: "Created",
+            value: viewItem?.createdAt
+              ? dayjs(viewItem.createdAt).format("MMM D, YYYY h:mm A")
+              : null,
+          },
+          {
+            label: "Updated",
+            value: viewItem?.updatedAt
+              ? dayjs(viewItem.updatedAt).format("MMM D, YYYY h:mm A")
+              : null,
+          },
+        ]}
+        footerExtra={
+          viewItem ? (
+            <Button
+              className="modern-form-submit"
+              onClick={() => {
+                const row = viewItem;
+                setViewItem(null);
+                openEdit(row);
+              }}
+            >
+              Edit sub category
+            </Button>
+          ) : null
+        }
+      />
 
       <Modal show={showModal} onHide={closeModal} centered size="lg" dialogClassName="modern-form-modal">
         <Modal.Header closeButton>

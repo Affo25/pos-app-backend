@@ -64,6 +64,22 @@ const SaleSchema = new mongoose.Schema({
     default: 0,
     min: 0,
   },
+  payment_method: {
+    type: String,
+    trim: true,
+    default: 'cash',
+  },
+  notes: {
+    type: String,
+    trim: true,
+    default: '',
+    maxlength: 1000,
+  },
+  reference_no: {
+    type: String,
+    trim: true,
+    default: '',
+  },
   sale_date: {
     type: Date,
     required: true,

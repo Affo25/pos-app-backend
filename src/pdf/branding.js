@@ -25,10 +25,23 @@ function buildBranding(invoiceDesign) {
   const d = invoiceDesign || {};
   const accent = d.buttonColor || d.primaryColor || C.accent;
   const forest = d.sidebarColor || d.secondaryColor || C.forest;
-  const validTemplates = ['report_a4', 'purchase_order_a4', 'restaurant_80mm', 'a4_80mm_strip', 'pos_receipt'];
-  const template = validTemplates.includes(d.template) ? d.template : 'a4_80mm_strip';
+  const validTemplates = [
+    'modern_sale_a4',
+    'modern_po_a4',
+    'report_a4',
+    'purchase_order_a4',
+    'restaurant_80mm',
+    'a4_80mm_strip',
+    'pos_receipt',
+  ];
+  const pick = (value, fallback) => (validTemplates.includes(value) ? value : fallback);
+  const template = pick(d.template, 'modern_sale_a4');
+  const saleTemplate = pick(d.saleTemplate, template);
+  const purchaseOrderTemplate = pick(d.purchaseOrderTemplate, 'modern_po_a4');
   return {
     template,
+    saleTemplate,
+    purchaseOrderTemplate,
     name: d.companyName || ENV_STORE.name,
     tagline: d.tagline || ENV_STORE.tagline,
     address: d.address || ENV_STORE.address,

@@ -205,6 +205,7 @@ const Users = () => {
         title="Users"
         subtitle="Manage your users."
         icon={<UsersIcon size={18} />}
+        totalRecords={tableData.length}
         addLabel="Add User"
         onAdd={() => setShowAdd(true)}
       >

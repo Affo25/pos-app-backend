@@ -34,7 +34,32 @@ function* logout() {
   }
 }
 
+function* refreshProfile() {
+  try {
+    const profile = yield call(authService.fetchProfile);
+    if (!profile) return;
+    const existing = (() => {
+      try {
+        return JSON.parse(localStorage.getItem("user") || "null") || {};
+      } catch {
+        return {};
+      }
+    })();
+    const nextUser = {
+      ...existing,
+      ...profile,
+      id: profile.id || profile._id || existing.id,
+      role_name: profile.role_name || profile.role_id?.name || existing.role_name || "",
+    };
+    localStorage.setItem("user", JSON.stringify(nextUser));
+    yield put(actions.updateUserProfile(nextUser));
+  } catch {
+    // Keep cached user if profile refresh fails.
+  }
+}
+
 export default function* authSaga() {
   yield takeLatest("auth/login", login);
   yield takeLatest("auth/logout", logout);
+  yield takeLatest("auth/refreshProfile", refreshProfile);
 }

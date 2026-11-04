@@ -7,6 +7,11 @@ export const fetchAllSales = async () => {
   return parseResponse(response, "Failed to fetch sales");
 };
 
+export const fetchNextInvoiceNumber = async () => {
+  const response = await authFetch(`${API_URL}/next-invoice-number`);
+  return parseResponse(response, "Failed to fetch next invoice number");
+};
+
 export const createSale = async (data) => {
   const response = await authFetch(API_URL, {
     method: "POST",

@@ -3,6 +3,7 @@ const Sale = require('../models/Sale');
 const Products = require('../models/Products');
 const { applyReturnsToSaleLineItems, maxReturnableQty } = require('../utils/saleHelpers');
 const { sendExcel } = require('../utils/excelHelpers');
+const { resolveAdminId } = require('../utils/resolveAdminId');
 
 exports.createReturn = async (req, res) => {
   try {
@@ -16,7 +17,13 @@ exports.createReturn = async (req, res) => {
       });
     }
 
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
+    if (!adminId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Could not resolve admin_id for this user',
+      });
+    }
 
     // Check if sale exists
     const sale = await Sale.findById(sale_id);
@@ -195,7 +202,10 @@ exports.createReturn = async (req, res) => {
 
 exports.exportReturnsToExcel = async (req, res) => {
   try {
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
+    if (!adminId) {
+      return res.status(400).json({ error: 'Could not resolve admin_id for this user' });
+    }
     const returns = await Return.find({ admin_id: adminId })
       .populate('sale_id', 'invoice_no')
       .populate('product_id', 'name')
@@ -219,7 +229,13 @@ exports.exportReturnsToExcel = async (req, res) => {
 
 exports.getReturns = async (req, res) => {
   try {
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
+    if (!adminId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Could not resolve admin_id for this user',
+      });
+    }
 
     const query = { admin_id: adminId };
     
@@ -295,7 +311,13 @@ exports.getReturns = async (req, res) => {
 exports.getReturnsBySale = async (req, res) => {
   try {
     const { sale_id } = req.params;
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
+    if (!adminId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Could not resolve admin_id for this user',
+      });
+    }
 
     if (!sale_id) {
       return res.status(400).json({ 
@@ -501,7 +523,13 @@ exports.verifyStockUpdate = async (req, res) => {
 // Get return statistics
 exports.getReturnStatistics = async (req, res) => {
   try {
-    const adminId = req.user.user_type === 'admin' ? req.user._id : req.user.admin_id;
+    const adminId = resolveAdminId(req.user);
+    if (!adminId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Could not resolve admin_id for this user',
+      });
+    }
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);

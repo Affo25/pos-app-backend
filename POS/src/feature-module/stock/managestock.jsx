@@ -1,306 +1,489 @@
-import React, { useState } from "react";
-import Breadcrumbs from "../../core/breadcrumbs";
-import { Filter, Sliders } from "react-feather";
-import ImageWithBasePath from "../../core/img/imagewithbasebath";
-import Select from "react-select";
-import { Link } from "react-router-dom";
-import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
-import { Archive, Box, Calendar, User } from "react-feather";
-import ManageStockModal from "../../core/modals/stocks/managestockModal";
-import { Edit, Trash2 } from "react-feather";
+import React, { useEffect, useMemo, useState } from "react";
+import { Table } from "antd";
+import dayjs from "dayjs";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  ArrowUp,
+  Eye,
+  FileText,
+  Package,
+  RefreshCw,
+  Trash2,
+} from "feather-icons-react/build/IconComponents";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
-import Table from "../../core/pagination/datatable";
-import { useSelector } from "react-redux";
+import { toast } from "react-toastify";
+import {
+  deleteProductAction,
+  fetchAllProductsAction,
+} from "../../redux/products/productSlice";
+import { fetchAllCategoriesAction } from "../../redux/categories/categorySlice";
+import CrudListToolbar from "../../core/components/CrudListToolbar";
+import { IdBadge, MoneyBadge, QtyBadge } from "../../core/components/CrudValueBadge";
+import ModernCrudShell from "../../core/components/ModernCrudShell";
+import ModernViewDialog from "../../core/components/ModernViewDialog";
+import { downloadExcelExport } from "../../redux/utils/excelTransfer";
+import { downloadRegisterPdf } from "../../utils/invoicePrint";
 
-const Managestock = () => {
-  const data = useSelector((state) => state.managestockdata);
+const money = (v) =>
+  `Rs ${Number(v || 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 
-  const [isFilterVisible, setIsFilterVisible] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(null);
+const isLowStock = (p) => {
+  const qty = Number(p.available_quantity ?? 0);
+  const min = Number(p.minimum_stock_alert ?? 0);
+  if (qty <= 0) return false;
+  return qty <= (min > 0 ? min : 5);
+};
 
-  const toggleFilterVisibility = () => {
-    setIsFilterVisible((prevVisibility) => !prevVisibility);
+const StockManagement = () => {
+  const dispatch = useDispatch();
+  const MySwal = withReactContent(Swal);
+  const { products, loading } = useSelector((state) => state.products);
+  const { categories } = useSelector((state) => state.categories);
+
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [activeTab, setActiveTab] = useState("all");
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+  const [viewProduct, setViewProduct] = useState(null);
+  const [busyExport, setBusyExport] = useState(false);
+
+  const load = () => {
+    dispatch(fetchAllProductsAction());
+    dispatch(fetchAllCategoriesAction());
   };
-  const handleDateChange = (date) => {
-    setSelectedDate(date);
+
+  useEffect(() => {
+    load();
+  }, [dispatch]);
+
+  const rows = Array.isArray(products) ? products : [];
+
+  const stats = useMemo(() => {
+    const totalMedicines = rows.length;
+    const lowStock = rows.filter(isLowStock).length;
+    const stockValue = rows.reduce((sum, p) => {
+      const tv =
+        p.total_value != null
+          ? Number(p.total_value)
+          : Number(p.available_quantity || 0) * Number(p.unit_price || 0);
+      return sum + tv;
+    }, 0);
+    const active = rows.filter(
+      (p) => String(p.status || "active").toLowerCase() === "active" && Number(p.available_quantity || 0) > 0,
+    ).length;
+    return { totalMedicines, lowStock, stockValue, active };
+  }, [rows]);
+
+  const categoryOptions = useMemo(
+    () => [
+      { value: "all", label: "All categories" },
+      ...(categories || []).map((c) => ({ value: c._id, label: c.name })),
+    ],
+    [categories],
+  );
+
+  const tabCounts = useMemo(() => {
+    const low = rows.filter(isLowStock).length;
+    const out = rows.filter((p) => Number(p.available_quantity ?? 0) <= 0).length;
+    const ok = rows.filter((p) => Number(p.available_quantity ?? 0) > 0 && !isLowStock(p)).length;
+    const expired = rows.filter((p) => p.expiry_date && dayjs(p.expiry_date).isBefore(dayjs(), "day")).length;
+    return { all: rows.length, ok, low, out, expired };
+  }, [rows]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter((p) => {
+      const catName = p.category?.name || "";
+      const catId = p.category?._id || p.category || "";
+      const hay = `${p.name || ""} ${p.sku || ""} ${p.batch_number || ""} ${catName} ${p.supplier_name || ""} ${p.manufacturer || ""} ${p.medicine_size || ""}`.toLowerCase();
+      if (q && !hay.includes(q)) return false;
+      if (categoryFilter !== "all" && String(catId) !== categoryFilter) return false;
+      const qty = Number(p.available_quantity ?? 0);
+      if (activeTab === "ok" && (qty <= 0 || isLowStock(p))) return false;
+      if (activeTab === "low" && !isLowStock(p)) return false;
+      if (activeTab === "out" && qty > 0) return false;
+      if (activeTab === "expired" && !(p.expiry_date && dayjs(p.expiry_date).isBefore(dayjs(), "day"))) {
+        return false;
+      }
+      return true;
+    });
+  }, [rows, search, categoryFilter, activeTab]);
+
+  const onDelete = (product) => {
+    MySwal.fire({
+      title: "Delete medicine?",
+      text: `Remove "${product.name}" from inventory?`,
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete",
+    }).then((result) => {
+      if (result.isConfirmed) dispatch(deleteProductAction(product._id));
+    });
   };
 
-  const options = [
-    { value: "sortByDate", label: "Sort by Date" },
-    { value: "140923", label: "14 09 23" },
-    { value: "110923", label: "11 09 23" },
-  ];
+  const onExportExcel = async () => {
+    setBusyExport(true);
+    try {
+      await downloadExcelExport("/products", "stock-management.xlsx");
+      toast.success("Excel downloaded");
+    } catch (err) {
+      toast.error(err?.message || "Export failed");
+    } finally {
+      setBusyExport(false);
+    }
+  };
 
-  const warehouseOptions = [
-    { value: "Choose Warehouse", label: "Choose Warehouse" },
-    { value: "Lobar Handy", label: "Lobar Handy" },
-    { value: "Quaint Warehouse", label: "Quaint Warehouse" },
-    { value: "Traditional Warehouse", label: "Traditional Warehouse" },
-    { value: "Cool Warehouse", label: "Cool Warehouse" },
-  ];
+  const onExportPdf = async () => {
+    try {
+      const records = filtered.map((p) => ({
+        invoice_no: p.sku || p.batch_number || "-",
+        customer_name: p.name || "-",
+        date_label: p.expiry_date ? dayjs(p.expiry_date).format("DD MMM YYYY") : "-",
+        total_amount: Number(p.available_quantity || 0) * Number(p.unit_price || 0),
+        net_amount: Number(p.unit_price || 0),
+        status: `qty ${Number(p.available_quantity || 0)}`,
+      }));
+      await downloadRegisterPdf({
+        records,
+        subtitle: `Stock management · ${records.length} products`,
+        filename: "stock-management.pdf",
+      });
+      toast.success("PDF downloaded");
+    } catch (err) {
+      toast.error(err?.message || "PDF export failed");
+    }
+  };
 
-  const productOptions = [
-    { value: "Choose Product", label: "Choose Product" },
-    { value: "Nike Jordan", label: "Nike Jordan" },
-    { value: "Apple Series 5 Watch", label: "Apple Series 5 Watch" },
-    { value: "Amazon Echo Dot", label: "Amazon Echo Dot" },
-    { value: "Lobar Handy", label: "Lobar Handy" },
-  ];
-
-  const personOptions = [
-    { value: "Choose Person", label: "Choose Person" },
-    { value: "Steven", label: "Steven" },
-    { value: "Gravely", label: "Gravely" },
-  ];
+  const dataSource = useMemo(
+    () =>
+      filtered.map((p, i) => ({
+        key: p._id || String(i),
+        index: i + 1,
+        raw: p,
+        name: p.name || "-",
+        sku: p.sku || "-",
+        batch: p.batch_number || "-",
+        category: p.category?.name || "-",
+        qty: Number(p.available_quantity ?? 0),
+        min: Number(p.minimum_stock_alert ?? 0),
+        sell: Number(p.unit_price || 0),
+        expiry: p.expiry_date ? dayjs(p.expiry_date).format("M/D/YYYY") : "-",
+        expiryRaw: p.expiry_date,
+        supplier: p.supplier_name || "-",
+        manufacturer: p.manufacturer || "-",
+        size: p.medicine_size || "-",
+        low: isLowStock(p),
+        expired: p.expiry_date ? dayjs(p.expiry_date).isBefore(dayjs(), "day") : false,
+      })),
+    [filtered],
+  );
 
   const columns = [
     {
-      title: "Warehouse",
-      dataIndex: "Warehouse",
-      sorter: (a, b) => a.Warehouse.length - b.Warehouse.length,
+      title: "#",
+      dataIndex: "index",
+      width: 56,
+      sorter: (a, b) => a.index - b.index,
     },
     {
-      title: "Shop",
-      dataIndex: "Shop",
-      sorter: (a, b) => a.Shop.length - b.Shop.length,
+      title: "Medicine",
+      dataIndex: "name",
+      sorter: (a, b) => String(a.name).localeCompare(String(b.name)),
     },
     {
-      title: "Product",
-      dataIndex: "Product",
-      render: (text, record) => (
-        <span className="userimgname">
-          <Link to="#" className="product-img">
-            <ImageWithBasePath alt="img" src={record.Product.Image} />
-          </Link>
-          <Link to="#">{record.Product.Name}</Link>
+      title: "SKU",
+      dataIndex: "sku",
+      ellipsis: true,
+      sorter: (a, b) => String(a.sku).localeCompare(String(b.sku)),
+      render: (v) => <IdBadge value={v} />,
+    },
+    {
+      title: "Batch",
+      dataIndex: "batch",
+      sorter: (a, b) => String(a.batch).localeCompare(String(b.batch)),
+      render: (v) => <span className="mc-value-badge is-neutral">{v}</span>,
+    },
+    {
+      title: "Category",
+      dataIndex: "category",
+      sorter: (a, b) => String(a.category).localeCompare(String(b.category)),
+      render: (v) => <span className="mc-value-badge is-muted">{v}</span>,
+    },
+    {
+      title: "Qty",
+      dataIndex: "qty",
+      sorter: (a, b) => a.qty - b.qty,
+      render: (qty, row) => (
+        <span className="d-inline-flex align-items-center gap-1">
+          {qty > 0 ? <ArrowUp size={13} className="text-success" /> : null}
+          <QtyBadge value={qty} tone={qty <= 0 ? "danger" : row.low ? "warn" : "ok"} />
         </span>
       ),
-      sorter: (a, b) => a.Product.Name.length - b.Product.Name.length,
     },
-
     {
-      title: "Date",
-      dataIndex: "Date",
-      sorter: (a, b) => a.Email.length - b.Email.length,
+      title: "Min",
+      dataIndex: "min",
+      sorter: (a, b) => a.min - b.min,
+      render: (v) => <QtyBadge value={v} tone="neutral" />,
     },
-
     {
-      title: "Person",
-      dataIndex: "Person",
-      render: (text, record) => (
-        <span className="userimgname">
-          <Link to="#" className="product-img">
-            <ImageWithBasePath alt="img" src={record.Person.Image} />
-          </Link>
-          <Link to="#">{record.Person.Name}</Link>
-        </span>
+      title: "Sell",
+      dataIndex: "sell",
+      sorter: (a, b) => a.sell - b.sell,
+      render: (v) => <MoneyBadge value={v} tone="info" />,
+    },
+    {
+      title: "Expiry",
+      dataIndex: "expiry",
+      sorter: (a, b) => dayjs(a.expiryRaw || 0).valueOf() - dayjs(b.expiryRaw || 0).valueOf(),
+      render: (text, row) =>
+        text === "-" ? (
+          "-"
+        ) : (
+          <span className={`modern-crud-badge ${row.expired ? "is-danger" : "is-ok"}`}>{text}</span>
+        ),
+    },
+    {
+      title: "Supplier",
+      dataIndex: "supplier",
+      ellipsis: true,
+      sorter: (a, b) => String(a.supplier).localeCompare(String(b.supplier)),
+    },
+    {
+      title: "Manufacturer",
+      dataIndex: "manufacturer",
+      ellipsis: true,
+      sorter: (a, b) => String(a.manufacturer).localeCompare(String(b.manufacturer)),
+    },
+    {
+      title: "Size",
+      dataIndex: "size",
+      sorter: (a, b) => String(a.size).localeCompare(String(b.size)),
+    },
+    {
+      title: "Actions",
+      width: 100,
+      fixed: "right",
+      render: (_, row) => (
+        <div className="modern-crud-actions">
+          <button
+            type="button"
+            className="modern-crud-icon-btn"
+            title="View"
+            onClick={() => setViewProduct(row.raw)}
+          >
+            <Eye size={15} />
+          </button>
+          <button
+            type="button"
+            className="modern-crud-icon-btn is-danger"
+            title="Delete"
+            onClick={() => onDelete(row.raw)}
+          >
+            <Trash2 size={15} />
+          </button>
+        </div>
       ),
-      sorter: (a, b) => a.Person.Name.length - b.Person.Name.length,
-    },
-
-    {
-      title: "Quantity",
-      dataIndex: "Quantity",
-      sorter: (a, b) => a.Quantity.length - b.Quantity.length,
-    },
-
-    {
-      title: "Action",
-      dataIndex: "action",
-      render: () => (
-        <td className="action-table-data">
-          <div className="edit-delete-action">
-            <div className="input-block add-lists"></div>
-
-            <Link
-              className="me-2 p-2"
-              to="#"
-              data-bs-toggle="modal"
-              data-bs-target="#edit-units"
-            >
-              <Edit className="feather-edit" />
-            </Link>
-
-            <Link
-              className="confirm-text p-2"
-              to="#"
-              onClick={showConfirmationAlert}
-            >
-              <Trash2 className="feather-trash-2" />
-            </Link>
-          </div>
-        </td>
-      ),
-      sorter: (a, b) => a.createdby.length - b.createdby.length,
     },
   ];
 
-  const MySwal = withReactContent(Swal);
+  const filterTabs = [
+    { key: "all", label: "All", count: tabCounts.all },
+    { key: "ok", label: "In stock", count: tabCounts.ok, tone: "ok" },
+    { key: "low", label: "Low stock", count: tabCounts.low, tone: "warn" },
+    { key: "out", label: "Out of stock", count: tabCounts.out, tone: "danger" },
+    { key: "expired", label: "Expired", count: tabCounts.expired, tone: "danger" },
+  ];
 
-  const showConfirmationAlert = () => {
-    MySwal.fire({
-      title: "Are you sure?",
-      text: "You won't be able to revert this!",
-      showCancelButton: true,
-      confirmButtonColor: "#00ff00",
-      confirmButtonText: "Yes, delete it!",
-      cancelButtonColor: "#ff0000",
-      cancelButtonText: "Cancel",
-    }).then((result) => {
-      if (result.isConfirmed) {
-        MySwal.fire({
-          title: "Deleted!",
-          text: "Your file has been deleted.",
-          className: "btn btn-success",
-          confirmButtonText: "OK",
-          customClass: {
-            confirmButton: "btn btn-success",
-          },
-        });
-      } else {
-        MySwal.close();
-      }
-    });
-  };
   return (
-    <div className="page-wrapper">
-      <div className="content">
-        <Breadcrumbs
-          maintitle="Manage Stock"
-          subtitle="Manage your stock"
-          addButton="Add New"
-        />
-        {/* /product list */}
-        <div className="card table-list-card">
-          <div className="card-body">
-            <div className="table-top">
-              <div className="search-set">
-                <div className="search-input">
-                  <input
-                    type="text"
-                    placeholder="Search"
-                    className="form-control form-control-sm formsearch"
-                  />
-                  <Link to className="btn btn-searchset">
-                    <i data-feather="search" className="feather-search" />
-                  </Link>
-                </div>
-              </div>
-              <div className="search-path">
-                <Link
-                  className={`btn btn-filter ${
-                    isFilterVisible ? "setclose" : ""
-                  }`}
-                  id="filter_search"
-                >
-                  <Filter
-                    className="filter-icon"
-                    onClick={toggleFilterVisibility}
-                  />
-                  <span onClick={toggleFilterVisibility}>
-                    <ImageWithBasePath
-                      src="assets/img/icons/closes.svg"
-                      alt="img"
-                    />
-                  </span>
-                </Link>
-              </div>
-              <div className="form-sort stylewidth">
-                <Sliders className="info-img" />
-
-                <Select
-                  className="select "
-                  options={options}
-                  placeholder="Sort by Date"
-                />
-              </div>
-            </div>
-            {/* /Filter */}
-            <div
-              className={`card${isFilterVisible ? " visible" : ""}`}
-              id="filter_inputs"
-              style={{ display: isFilterVisible ? "block" : "none" }}
+    <>
+      <ModernCrudShell
+        title="Medicine & Inventory"
+        subtitle="Stock levels, batches, expiry, and valuation"
+        icon={<Package size={18} />}
+        totalRecords={filtered.length}
+        headerExtra={
+          <>
+            <button
+              type="button"
+              className="btn modern-crud-io-btn"
+              onClick={onExportExcel}
+              disabled={busyExport}
             >
-              <div className="card-body pb-0">
-                <div className="row">
-                  <div className="col-lg-2 col-sm-6 col-12">
-                    <div className="input-blocks">
-                      <Archive className="info-img" />
-                      <Select
-                        className="select"
-                        options={warehouseOptions}
-                        placeholder="Choose Warehouse"
-                      />
-                    </div>
-                  </div>
-                  <div className="col-lg-2 col-sm-6 col-12">
-                    <div className="input-blocks">
-                      <Box className="info-img" />
-                      <Select
-                        className="select"
-                        options={productOptions}
-                        placeholder="Choose Product"
-                      />
-                    </div>
-                  </div>
-                  <div className="col-lg-2 col-sm-6 col-12">
-                    <div className="input-blocks">
-                      <Calendar className="info-img" />
-                      <div className="input-groupicon">
-                        <DatePicker
-                          selected={selectedDate}
-                          onChange={handleDateChange}
-                          dateFormat="dd/MM/yyyy"
-                          placeholderText="Choose Date"
-                          className="datetimepicker"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="col-lg-2 col-sm-6 col-12">
-                    <div className="input-blocks">
-                      <User className="info-img" />
-                      <Select
-                        className="select"
-                        options={personOptions}
-                        placeholder="Choose Person"
-                      />
-                    </div>
-                  </div>
-                  <div className="col-lg-4 col-sm-6 col-12 ms-auto">
-                    <div className="input-blocks">
-                      <a className="btn btn-filters ms-auto">
-                        {" "}
-                        <i
-                          data-feather="search"
-                          className="feather-search"
-                        />{" "}
-                        Search{" "}
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            {/* /Filter */}
-            <div className="table-responsive">
-              <Table
-                className="table datanew"
-                columns={columns}
-                dataSource={data}
-                rowKey={(record) => record.id}
-                // pagination={true}
-              />
-            </div>
+              Excel
+            </button>
+            <button type="button" className="btn modern-crud-io-btn" onClick={onExportPdf}>
+              <FileText size={15} />
+              PDF
+            </button>
+            <button type="button" className="btn modern-crud-io-btn" onClick={load} disabled={loading}>
+              <RefreshCw size={15} />
+              Refresh
+            </button>
+          </>
+        }
+      >
+        <div className="stock-stat-grid">
+          <div className="stock-stat-card">
+            <div className="stock-stat-label">Total medicines</div>
+            <div className="stock-stat-value">{stats.totalMedicines}</div>
+            <div className="stock-stat-hint">SKUs in catalog</div>
+            <div className="stock-stat-spark is-purple" aria-hidden="true" />
+          </div>
+          <div className="stock-stat-card">
+            <div className="stock-stat-label">Low stock items</div>
+            <div className="stock-stat-value">{stats.lowStock}</div>
+            <div className="stock-stat-hint">At or below minimum</div>
+            <div className="stock-stat-spark is-amber" aria-hidden="true" />
+          </div>
+          <div className="stock-stat-card">
+            <div className="stock-stat-label">Total stock value</div>
+            <div className="stock-stat-value stock-stat-value--sm">{money(stats.stockValue)}</div>
+            <div className="stock-stat-hint">At sell price / valuation</div>
+            <div className="stock-stat-spark is-green" aria-hidden="true" />
+          </div>
+          <div className="stock-stat-card">
+            <div className="stock-stat-label">Active medicines</div>
+            <div className="stock-stat-value">{stats.active}</div>
+            <div className="stock-stat-hint">Available to sell</div>
+            <div className="stock-stat-spark is-blue" aria-hidden="true" />
           </div>
         </div>
-        {/* /product list */}
-      </div>
-      <ManageStockModal />
-    </div>
+
+        <CrudListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search by medicine name, batch, SKU..."
+          totalRecords={filtered.length}
+          filterLabel="Category"
+          filterValue={categoryFilter}
+          onFilterChange={setCategoryFilter}
+          filterOptions={categoryOptions}
+          showFiltersButton
+          filtersOpen={filtersOpen}
+          onToggleFilters={() => setFiltersOpen((v) => !v)}
+          stockFilterValue={activeTab}
+          onStockFilterChange={setActiveTab}
+          stockFilterOptions={filterTabs.map((t) => ({
+            value: t.key,
+            label: t.label,
+            count: t.count,
+            tone: t.tone,
+          }))}
+          tabs={filterTabs}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
+
+        <div className="modern-crud-table">
+          <Table
+            rowSelection={{
+              selectedRowKeys,
+              onChange: setSelectedRowKeys,
+            }}
+            columns={columns}
+            dataSource={dataSource}
+            loading={loading}
+            scroll={{ x: 1280 }}
+            pagination={{
+              pageSize: 10,
+              showSizeChanger: true,
+              pageSizeOptions: ["10", "20", "50"],
+            }}
+            locale={{ emptyText: loading ? "Loading..." : "No stock records found" }}
+          />
+        </div>
+      </ModernCrudShell>
+
+      <ModernViewDialog
+        show={Boolean(viewProduct)}
+        onHide={() => setViewProduct(null)}
+        title={viewProduct?.name || "Medicine"}
+        subtitle={viewProduct?.sku ? `SKU ${viewProduct.sku}` : "Stock details"}
+        badge={
+          viewProduct ? (
+            <span
+              className={`modern-crud-badge ${
+                viewProduct.status === "inactive" ? "is-danger" : "is-ok"
+              }`}
+            >
+              {viewProduct.status === "inactive" ? "Inactive" : "Active"}
+            </span>
+          ) : null
+        }
+        sections={[
+          {
+            title: "Basic",
+            fields: [
+              { label: "Medicine", value: viewProduct?.name },
+              { label: "SKU", value: viewProduct?.sku, mono: true },
+              { label: "Batch", value: viewProduct?.batch_number, mono: true },
+              {
+                label: "Expiry",
+                value: viewProduct?.expiry_date
+                  ? dayjs(viewProduct.expiry_date).format("MMM D, YYYY")
+                  : null,
+              },
+              { label: "Category", value: viewProduct?.category?.name },
+              { label: "Status", value: viewProduct?.status || "active" },
+              {
+                label: "Prescription required",
+                value: viewProduct?.is_prescription_required,
+                type: "bool",
+              },
+              { label: "Medicine size", value: viewProduct?.medicine_size },
+            ],
+          },
+          {
+            title: "Stock & pricing",
+            fields: [
+              { label: "Available quantity", value: viewProduct?.available_quantity },
+              { label: "Minimum stock alert", value: viewProduct?.minimum_stock_alert },
+              { label: "Unit price", value: money(viewProduct?.unit_price) },
+              {
+                label: "Total value",
+                value: money(
+                  viewProduct?.total_value != null
+                    ? viewProduct.total_value
+                    : Number(viewProduct?.available_quantity || 0) *
+                        Number(viewProduct?.unit_price || 0),
+                ),
+              },
+              { label: "Discount %", value: viewProduct?.discount },
+              { label: "GST %", value: viewProduct?.gst },
+              { label: "Rack location", value: viewProduct?.rack_location },
+            ],
+          },
+          {
+            title: "Supplier & manufacturer",
+            fields: [
+              { label: "Supplier", value: viewProduct?.supplier_name },
+              { label: "Manufacturer", value: viewProduct?.manufacturer },
+              { label: "License no.", value: viewProduct?.manufacturer_license_no },
+              { label: "Registration no.", value: viewProduct?.manufacturer_registration_no },
+            ],
+          },
+          {
+            title: "Additional",
+            fields: [
+              {
+                label: "Alternative medicines",
+                value: viewProduct?.alternative_medicines,
+                type: "list",
+                span: 2,
+              },
+              { label: "Storage instructions", value: viewProduct?.storage_instructions, span: 2 },
+              { label: "Notes", value: viewProduct?.notes, span: 2 },
+            ],
+          },
+        ]}
+      />
+    </>
   );
 };
 
-export default Managestock;
+export default StockManagement;

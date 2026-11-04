@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import ImageWithBasePath from "../../../core/img/imagewithbasebath";
 import { all_routes } from "../../../Router/all_routes";
 import { loginAction } from "../../../redux/authentication/authSlice";
+import { DEFAULT_APP_LOGO, DEFAULT_APP_NAME } from "../../../utils/appBranding";
 
 const Signin = () => {
   const route = all_routes;
@@ -37,11 +38,11 @@ const Signin = () => {
             <div className="login-split__visual-overlay" />
             <div className="login-split__visual-content">
               <ImageWithBasePath
-                src="assets/img/logo-white.png"
-                alt="POS"
+                src={DEFAULT_APP_LOGO}
+                alt={DEFAULT_APP_NAME}
                 className="login-split__brand"
               />
-              <h1>Run your store with clarity</h1>
+              <h1>{DEFAULT_APP_NAME}</h1>
               <p>
                 Sign in to manage sales, inventory, and customers from one
                 modern POS workspace.
@@ -53,10 +54,10 @@ const Signin = () => {
             <div className="login-split__card">
               <div className="login-split__card-header">
                 <div className="login-split__logo-mobile">
-                  <ImageWithBasePath src="assets/img/logo.png" alt="POS" />
+                  <ImageWithBasePath src={DEFAULT_APP_LOGO} alt={DEFAULT_APP_NAME} />
                 </div>
                 <h2>Welcome back</h2>
-                <p>Access the POS panel with your email and password.</p>
+                <p>Access {DEFAULT_APP_NAME} with your email and password.</p>
               </div>
 
               {error ? (

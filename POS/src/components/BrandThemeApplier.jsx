@@ -2,51 +2,54 @@ import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import Cookies from "js-cookie";
 import { fetchSettingsAction } from "../redux/settings/settingSlice";
+import { DEFAULT_APP_NAME, getAppBranding } from "../utils/appBranding";
 
-const DEFAULT_SIDEBAR = "#0d2b26";
-
-function shadeHex(hex, percent) {
-  const raw = String(hex || "").replace("#", "");
-  if (!/^[0-9a-fA-F]{3}$|^[0-9a-fA-F]{6}$/.test(raw)) return hex;
-  const full =
-    raw.length === 3
-      ? raw
-          .split("")
-          .map((c) => c + c)
-          .join("")
-      : raw;
-  const num = parseInt(full, 16);
-  const r = Math.min(255, Math.max(0, ((num >> 16) & 0xff) + Math.round(2.55 * percent)));
-  const g = Math.min(255, Math.max(0, ((num >> 8) & 0xff) + Math.round(2.55 * percent)));
-  const b = Math.min(255, Math.max(0, (num & 0xff) + Math.round(2.55 * percent)));
-  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-}
+/** Dark green palette from app theme (color-hex 9376). */
+const THEME = {
+  sidebar: "#182c25",
+  pine: "#1e453e",
+  forest: "#2c4c3b",
+  emerald: "#306844",
+  slate: "#455b55",
+  soft: "#e6efe9",
+  buttonText: "#ffffff",
+};
 
 /**
- * Applies button/accent branding only. Sidebar stays on the fixed theme color.
+ * Applies fixed dark-green theme + browser title from app branding.
  */
 const BrandThemeApplier = () => {
   const dispatch = useDispatch();
-  const settings = useSelector((state) => state.settings?.settings);
   const token = Cookies.get("token");
+  const settings = useSelector((state) => state.settings?.settings);
 
   useEffect(() => {
     if (token) dispatch(fetchSettingsAction());
   }, [dispatch, token]);
 
   useEffect(() => {
-    const design = settings?.invoiceDesign || {};
-    const button = design.buttonColor || design.primaryColor || "#c4f45d";
     const root = document.documentElement;
-    // Keep sidebar / primary text on the original theme greens
-    root.style.setProperty("--ph-sidebar", DEFAULT_SIDEBAR);
-    root.style.setProperty("--ph-sidebar-soft", "#143832");
-    root.style.setProperty("--ph-lime-text", DEFAULT_SIDEBAR);
-    root.style.setProperty("--mc-primary", DEFAULT_SIDEBAR);
-    // Only accent / buttons follow branding
-    root.style.setProperty("--ph-lime", button);
-    root.style.setProperty("--ph-lime-hover", shadeHex(button, -8));
-    root.style.setProperty("--mc-accent", button);
+    root.style.setProperty("--ph-sidebar", THEME.sidebar);
+    root.style.setProperty("--ph-sidebar-soft", THEME.pine);
+    root.style.setProperty("--ph-forest", THEME.forest);
+    root.style.setProperty("--ph-emerald", THEME.emerald);
+    root.style.setProperty("--ph-slate", THEME.slate);
+    root.style.setProperty("--ph-soft", THEME.soft);
+    root.style.setProperty("--ph-lime", THEME.emerald);
+    root.style.setProperty("--ph-lime-hover", THEME.forest);
+    root.style.setProperty("--ph-lime-text", THEME.buttonText);
+    root.style.setProperty("--mc-primary", THEME.sidebar);
+    root.style.setProperty("--mc-primary-dark", "#121f1a");
+    root.style.setProperty("--mc-primary-soft", THEME.soft);
+    root.style.setProperty("--mc-accent", THEME.emerald);
+    root.style.setProperty("--mc-accent-hover", THEME.forest);
+    root.style.setProperty("--mc-emerald", THEME.emerald);
+    root.style.setProperty("--mc-forest", THEME.forest);
+    root.style.setProperty("--mc-pine", THEME.pine);
+    root.style.setProperty("--mc-slate", THEME.slate);
+
+    const { name } = getAppBranding(settings);
+    document.title = name || DEFAULT_APP_NAME;
   }, [settings]);
 
   return null;

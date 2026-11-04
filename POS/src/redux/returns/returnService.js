@@ -3,7 +3,7 @@ import { authFetch, parseResponse } from "../utils/apiHelpers";
 const API_URL = "/returns";
 
 export const fetchAllReturns = async () => {
-  const response = await authFetch(API_URL);
+  const response = await authFetch(`${API_URL}?limit=500`);
   return parseResponse(response, "Failed to fetch returns");
 };
 
@@ -12,7 +12,14 @@ export const createReturn = async (data) => {
     method: "POST",
     body: JSON.stringify(data),
   });
-  return parseResponse(response, "Failed to create return");
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = Array.isArray(payload?.errors)
+      ? payload.errors.join(", ")
+      : payload?.message || payload?.error;
+    throw new Error(detail || "Failed to create return");
+  }
+  return payload?.data ?? payload;
 };
 
 export const updateReturn = async (id, data) => {

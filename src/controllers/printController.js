@@ -4,11 +4,19 @@ const { loadBrandingForRequest } = require('../pdf/branding');
 const { generateInvoicePDF } = require('../pdf/generateInvoicePdf');
 const { generateSalesRegisterPDF } = require('../pdf/generateSalesRegisterPdf');
 
-const VALID_PDF_TEMPLATES = ['report_a4', 'purchase_order_a4', 'restaurant_80mm', 'a4_80mm_strip', 'pos_receipt'];
+const VALID_PDF_TEMPLATES = [
+  'modern_sale_a4',
+  'modern_po_a4',
+  'report_a4',
+  'purchase_order_a4',
+  'restaurant_80mm',
+  'a4_80mm_strip',
+  'pos_receipt',
+];
 
 function applyTemplateOverride(branding, template) {
   if (template && VALID_PDF_TEMPLATES.includes(template)) {
-    return { ...branding, template };
+    return { ...branding, template, templateForced: true };
   }
   return branding;
 }

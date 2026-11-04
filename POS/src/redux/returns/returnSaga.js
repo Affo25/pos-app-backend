@@ -29,6 +29,7 @@ function* createReturn({ payload }) {
   if (!ok) return;
   toast.success("Return created successfully");
   yield call(fetchAllReturns);
+  yield put({ type: "sales/fetchAll" });
 }
 
 function* updateReturn({ payload: { id, data } }) {

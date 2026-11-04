@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Table } from "antd";
 import { Modal, Button } from "react-bootstrap";
 import { useDispatch, useSelector } from "react-redux";
-import { Edit, Home, Trash2 } from "feather-icons-react/build/IconComponents";
+import { Edit, Eye, Home, Trash2 } from "feather-icons-react/build/IconComponents";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 import {
@@ -13,6 +13,7 @@ import {
 } from "../../redux/branchProfiles/branchProfileSlice";
 import CrudListToolbar from "../../core/components/CrudListToolbar";
 import ModernCrudShell from "../../core/components/ModernCrudShell";
+import ModernViewDialog from "../../core/components/ModernViewDialog";
 
 const empty = {
   branch_name: "",
@@ -36,6 +37,7 @@ const BranchProfiles = () => {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [filtersOpen, setFiltersOpen] = useState(true);
+  const [viewItem, setViewItem] = useState(null);
 
   useEffect(() => {
     dispatch(fetchAllBranchProfilesAction());
@@ -157,9 +159,17 @@ const BranchProfiles = () => {
     },
     {
       title: "Action",
-      width: 110,
+      width: 130,
       render: (_, row) => (
         <div className="modern-crud-actions">
+          <button
+            type="button"
+            className="modern-crud-icon-btn"
+            onClick={() => setViewItem(row)}
+            title="View"
+          >
+            <Eye size={15} />
+          </button>
           <button type="button" className="modern-crud-icon-btn" onClick={() => openEdit(row)} title="Edit">
             <Edit size={15} />
           </button>
@@ -188,6 +198,7 @@ const BranchProfiles = () => {
         title="Branches"
         subtitle="Manage store / branch profiles."
         icon={<Home size={18} />}
+        totalRecords={filtered.length}
         addLabel="Add Branch"
         onAdd={openCreate}
         excelResource="/branchProfiles"
@@ -225,6 +236,48 @@ const BranchProfiles = () => {
           />
         </div>
       </ModernCrudShell>
+
+      <ModernViewDialog
+        show={Boolean(viewItem)}
+        onHide={() => setViewItem(null)}
+        title={viewItem?.branch_name || "Branch"}
+        subtitle={viewItem?.code ? `Code ${viewItem.code}` : "Branch details"}
+        badge={
+          viewItem ? (
+            <span
+              className={`modern-crud-badge ${
+                String(viewItem.status).toLowerCase() === "active" ? "is-ok" : "is-warn"
+              }`}
+            >
+              {viewItem.status || "-"}
+            </span>
+          ) : null
+        }
+        fields={[
+          { label: "Branch name", value: viewItem?.branch_name },
+          { label: "Code", value: viewItem?.code, mono: true },
+          { label: "VP / Contact name", value: viewItem?.vp_name },
+          { label: "Title", value: viewItem?.vp_title },
+          { label: "Contact", value: viewItem?.vp_contact },
+          { label: "Email", value: viewItem?.vp_email },
+          { label: "City", value: viewItem?.city },
+          { label: "Status", value: viewItem?.status },
+        ]}
+        footerExtra={
+          viewItem ? (
+            <Button
+              className="modern-form-submit"
+              onClick={() => {
+                const row = viewItem;
+                setViewItem(null);
+                openEdit(row);
+              }}
+            >
+              Edit branch
+            </Button>
+          ) : null
+        }
+      />
 
       <Modal show={showModal} onHide={closeModal} centered size="lg" dialogClassName="modern-form-modal">
         <Modal.Header closeButton>

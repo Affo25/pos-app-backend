@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import Select from "react-select";
 import { toast } from "react-toastify";
 import {
   Minus,
+  Paperclip,
   Plus,
   Search,
   ShoppingCart,
@@ -17,10 +18,7 @@ import { fetchSettingsAction } from "../../redux/settings/settingSlice";
 import * as saleService from "../../redux/sales/saleService";
 import { getApiBase } from "../../config/runtimeConfig";
 import ImageWithBasePath from "../../core/img/imagewithbasebath";
-import {
-  openInvoicePreview,
-  saleToInvoicePayload,
-} from "../../utils/invoicePrint";
+import SaleInvoiceModal from "../../core/modals/sales/SaleInvoiceModal";
 
 const resolveProductImage = (image) => {
   if (!image) return null;
@@ -34,14 +32,21 @@ const resolveProductImage = (image) => {
   return image;
 };
 
+const makeTicketRef = () => `SL-${Date.now()}`;
+
 const Pos = () => {
   const dispatch = useDispatch();
   const { products, loading: productsLoading } = useSelector((state) => state.products);
   const { customers } = useSelector((state) => state.customers);
   const { loading: saleLoading } = useSelector((state) => state.sales);
   const settings = useSelector((state) => state.settings?.settings);
+  const authUser = useSelector((state) => state.auth?.user);
   const posLayout = settings?.invoiceDesign?.posLayout === "gridview" ? "gridview" : "tabular";
-  const invoiceTemplate = settings?.invoiceDesign?.template || undefined;
+  const invoiceTemplate =
+    settings?.invoiceDesign?.saleTemplate ||
+    settings?.invoiceDesign?.template ||
+    undefined;
+  const cashierName = authUser?.name || "Cashier";
 
   const [customer, setCustomer] = useState(null);
   const [cart, setCart] = useState([]);
@@ -49,12 +54,27 @@ const Pos = () => {
   const [search, setSearch] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [checkingOut, setCheckingOut] = useState(false);
+  const [invoiceNo, setInvoiceNo] = useState("—");
+  const [ticketRef, setTicketRef] = useState(makeTicketRef);
+  const [saleNote, setSaleNote] = useState("");
+  const [completedSale, setCompletedSale] = useState(null);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+
+  const refreshInvoiceNo = useCallback(async () => {
+    try {
+      const result = await saleService.fetchNextInvoiceNumber();
+      setInvoiceNo(result?.invoice_no || "—");
+    } catch {
+      setInvoiceNo("—");
+    }
+  }, []);
 
   useEffect(() => {
     dispatch(fetchAllProductsAction());
     dispatch(fetchAllCustomersAction());
     dispatch(fetchSettingsAction());
-  }, [dispatch]);
+    refreshInvoiceNo();
+  }, [dispatch, refreshInvoiceNo]);
 
   const customerOptions = useMemo(
     () =>
@@ -75,6 +95,16 @@ const Pos = () => {
       return hay.includes(q);
     });
   }, [products, search]);
+
+  const customerLabel = customer?.name || "Walk-in";
+
+  const clearTicket = () => {
+    setCart([]);
+    setAmountReceived("");
+    setCustomer(null);
+    setSaleNote("");
+    setTicketRef(makeTicketRef());
+  };
 
   const addToCart = (product) => {
     const stock = Number(product.available_quantity ?? 0);
@@ -138,11 +168,13 @@ const Pos = () => {
 
   const totals = useMemo(() => {
     const total_amount = cart.reduce((sum, i) => sum + Number(i.line_total || 0), 0);
+    const tax_amount = 0;
     return {
       total_amount,
       discount_amount: 0,
-      tax_amount: 0,
-      net_amount: total_amount,
+      tax_amount,
+      net_amount: total_amount + tax_amount,
+      item_count: cart.reduce((s, i) => s + Number(i.quantity || 0), 0),
     };
   }, [cart]);
 
@@ -165,10 +197,12 @@ const Pos = () => {
       })),
       total_amount: totals.total_amount,
       discount_amount: 0,
-      tax_amount: 0,
+      tax_amount: totals.tax_amount,
       net_amount: totals.net_amount,
       amount_received: Number(amountReceived || totals.net_amount),
       payment_method: paymentMethod,
+      notes: saleNote.trim(),
+      reference_no: ticketRef,
       sale_date: new Date().toISOString(),
       status: "completed",
     };
@@ -176,16 +210,15 @@ const Pos = () => {
     try {
       const sale = await saleService.createSale(payload);
       toast.success("Sale completed");
-      setCart([]);
-      setAmountReceived("");
-      setCustomer(null);
+      clearTicket();
       dispatch(fetchAllProductsAction());
       dispatch(fetchAllSalesAction());
-      try {
-        await openInvoicePreview(saleToInvoicePayload(sale), invoiceTemplate);
-      } catch (printErr) {
-        toast.error(printErr?.message || "Sale saved, but invoice PDF failed");
-      }
+      await refreshInvoiceNo();
+      setCompletedSale({
+        ...sale,
+        cashier_name: cashierName,
+      });
+      setShowInvoiceModal(true);
     } catch (err) {
       toast.error(err?.message || "Failed to complete sale");
     } finally {
@@ -266,12 +299,27 @@ const Pos = () => {
           <div className="col-xl-4 col-lg-5">
             <div className="modern-crud-shell pos-cart-panel">
               <div className="pos-cart-head">
-                <h5 className="mb-0">Cart</h5>
-                {cart.length ? (
-                  <button type="button" className="btn btn-sm modern-crud-io-btn" onClick={() => setCart([])}>
+                <h5 className="mb-0">The Ticket</h5>
+                <div className="pos-ticket-actions">
+                  <select
+                    className="form-select form-select-sm pos-pay-select"
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    aria-label="Payment method"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="card">Card</option>
+                    <option value="bank">Bank</option>
+                  </select>
+                  <button
+                    type="button"
+                    className="btn btn-sm modern-crud-io-btn"
+                    onClick={clearTicket}
+                    disabled={!cart.length && !saleNote && !customer}
+                  >
                     <X size={14} /> Clear
                   </button>
-                ) : null}
+                </div>
               </div>
 
               <div className="mb-2">
@@ -282,8 +330,30 @@ const Pos = () => {
                   value={customer}
                   onChange={setCustomer}
                   isClearable
-                  placeholder="Walk-in customer"
+                  placeholder="Walk-in"
                 />
+              </div>
+
+              <div className="pos-ticket-meta" aria-label="Sale details">
+                <span className="pos-ticket-chip" title="Invoice number">
+                  {invoiceNo}
+                </span>
+                <span className="pos-ticket-chip" title="Sale reference">
+                  <Paperclip size={12} />
+                  {ticketRef}
+                </span>
+                <span className="pos-ticket-chip" title="Customer">
+                  {customerLabel}
+                </span>
+                <span className="pos-ticket-chip" title="Cashier">
+                  cashier: {cashierName}
+                </span>
+              </div>
+
+              <div className="pos-cart-cols">
+                <span>ITEM</span>
+                <span>QTY</span>
+                <span>TOTAL</span>
               </div>
 
               <div className="pos-cart-list">
@@ -325,31 +395,42 @@ const Pos = () => {
                     </div>
                   );
                 })}
-                {!cart.length ? <div className="text-muted text-center py-4">Cart is empty</div> : null}
+                {!cart.length ? (
+                  <div className="pos-cart-empty">
+                    <ShoppingCart size={22} />
+                    <span>Empty ticket. Tap a product to begin.</span>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="mb-2">
+                <input
+                  type="text"
+                  className="form-control form-control-sm"
+                  placeholder="Note (optional)"
+                  value={saleNote}
+                  onChange={(e) => setSaleNote(e.target.value)}
+                  maxLength={1000}
+                />
               </div>
 
               <div className="pos-cart-footer">
-                <div className="d-flex justify-content-between mb-2">
-                  <span>Items</span>
-                  <strong>{cart.reduce((s, i) => s + i.quantity, 0)}</strong>
+                <div className="pos-ticket-totals">
+                  <div>
+                    <span>Subtotal</span>
+                    <strong>PKR {totals.total_amount.toFixed(2)}</strong>
+                  </div>
+                  <div>
+                    <span>Tax / GST</span>
+                    <strong>PKR {totals.tax_amount.toFixed(2)}</strong>
+                  </div>
+                  <div className="is-grand">
+                    <span>Grand total</span>
+                    <strong>PKR {totals.net_amount.toFixed(2)}</strong>
+                  </div>
                 </div>
-                <div className="d-flex justify-content-between mb-2">
-                  <span>Net amount</span>
-                  <strong>PKR {totals.net_amount.toFixed(2)}</strong>
-                </div>
+
                 <div className="mb-2">
-                  <label className="modern-form-label">Payment method</label>
-                  <select
-                    className="form-select form-select-sm"
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                  >
-                    <option value="cash">Cash</option>
-                    <option value="card">Card</option>
-                    <option value="bank">Bank</option>
-                  </select>
-                </div>
-                <div className="mb-3">
                   <label className="modern-form-label">Amount received</label>
                   <input
                     type="number"
@@ -360,19 +441,32 @@ const Pos = () => {
                     onChange={(e) => setAmountReceived(e.target.value)}
                   />
                 </div>
+
                 <button
                   type="button"
                   className="btn modern-form-submit w-100"
                   disabled={saleLoading || checkingOut || !cart.length}
                   onClick={checkout}
                 >
-                  {checkingOut || saleLoading ? "Processing..." : "Complete Sale"}
+                  {checkingOut || saleLoading
+                    ? "Processing..."
+                    : `Charge — Rs ${totals.net_amount.toFixed(2)}`}
                 </button>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      <SaleInvoiceModal
+        show={showInvoiceModal}
+        sale={completedSale}
+        template={invoiceTemplate}
+        onClose={() => {
+          setShowInvoiceModal(false);
+          setCompletedSale(null);
+        }}
+      />
     </div>
   );
 };

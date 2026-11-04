@@ -2,11 +2,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Table } from "antd";
 import { Modal, Button } from "react-bootstrap";
 import { useDispatch, useSelector } from "react-redux";
-import { Edit, Trash2, Users } from "feather-icons-react/build/IconComponents";
+import { Edit, Eye, Trash2, Users } from "feather-icons-react/build/IconComponents";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 import CrudListToolbar from "../../core/components/CrudListToolbar";
+import { MoneyBadge } from "../../core/components/CrudValueBadge";
 import ModernCrudShell from "../../core/components/ModernCrudShell";
+import ModernViewDialog from "../../core/components/ModernViewDialog";
 import EntityImageUpload from "../../core/components/EntityImageUpload";
 import { resolveMediaUrl } from "../../redux/utils/uploadMedia";
 import {
@@ -37,6 +39,7 @@ const Suppliers = () => {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [filtersOpen, setFiltersOpen] = useState(true);
+  const [viewItem, setViewItem] = useState(null);
 
   useEffect(() => {
     dispatch(fetchAllSuppliersAction());
@@ -171,14 +174,22 @@ const Suppliers = () => {
     {
       title: "Opening Bal.",
       dataIndex: "openingBal",
-      render: (v) => `PKR ${v}`,
+      render: (v) => <MoneyBadge value={v} tone={Number(v) > 0 ? "warn" : "ok"} prefix="PKR" />,
       sorter: (a, b) => Number(a.opening_balance || 0) - Number(b.opening_balance || 0),
     },
     {
       title: "Action",
-      width: 110,
+      width: 130,
       render: (_, row) => (
         <div className="modern-crud-actions">
+          <button
+            type="button"
+            className="modern-crud-icon-btn"
+            onClick={() => setViewItem(row)}
+            title="View"
+          >
+            <Eye size={15} />
+          </button>
           <button type="button" className="modern-crud-icon-btn" onClick={() => openEdit(row)} title="Edit">
             <Edit size={15} />
           </button>
@@ -201,6 +212,7 @@ const Suppliers = () => {
         title="Suppliers"
         subtitle="Manage your suppliers."
         icon={<Users size={18} />}
+        totalRecords={filtered.length}
         addLabel="Add Supplier"
         onAdd={openCreate}
         excelResource="/suppliers"
@@ -241,6 +253,43 @@ const Suppliers = () => {
           />
         </div>
       </ModernCrudShell>
+
+      <ModernViewDialog
+        show={Boolean(viewItem)}
+        onHide={() => setViewItem(null)}
+        title={viewItem?.name || "Supplier"}
+        subtitle="Supplier details"
+        imageUrl={viewItem?.image ? resolveMediaUrl(viewItem.image) : ""}
+        imageAlt={viewItem?.name || "Supplier"}
+        fields={[
+          { label: "Name", value: viewItem?.name },
+          { label: "Phone", value: viewItem?.phone },
+          { label: "Email", value: viewItem?.email },
+          {
+            label: "Opening balance",
+            value:
+              viewItem?.opening_balance != null
+                ? `PKR ${Number(viewItem.opening_balance).toFixed(2)}`
+                : null,
+          },
+          { label: "Address", value: viewItem?.address, span: 2 },
+          { label: "Opening balance note", value: viewItem?.opening_balance_note, span: 2 },
+        ]}
+        footerExtra={
+          viewItem ? (
+            <Button
+              className="modern-form-submit"
+              onClick={() => {
+                const row = viewItem;
+                setViewItem(null);
+                openEdit(row);
+              }}
+            >
+              Edit supplier
+            </Button>
+          ) : null
+        }
+      />
 
       <Modal show={showModal} onHide={closeModal} centered size="lg" dialogClassName="modern-form-modal">
         <Modal.Header closeButton>

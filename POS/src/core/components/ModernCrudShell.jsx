@@ -15,6 +15,9 @@ const ModernCrudShell = ({
   excelFileName,
   canImportExcel = false,
   onExcelImported,
+  totalRecords,
+  totalLabel = "Total records",
+  headerExtra = null,
 }) => (
   <div className="page-wrapper modern-crud-page">
     <div className="content">
@@ -22,7 +25,16 @@ const ModernCrudShell = ({
         <div>
           <h4 className="modern-crud-title">
             {icon ? <span className="modern-crud-title-icon">{icon}</span> : null}
-            {title}
+            <span className="modern-crud-title-text">{title}</span>
+            {typeof totalRecords === "number" ? (
+              <>
+                <span className="modern-crud-title-divider" aria-hidden="true" />
+                <span className="modern-crud-title-total">
+                  <span className="modern-crud-title-total-label">{totalLabel}</span>
+                  <span className="modern-crud-title-total-badge">{totalRecords}</span>
+                </span>
+              </>
+            ) : null}
           </h4>
           {subtitle ? <p className="modern-crud-subtitle">{subtitle}</p> : null}
         </div>
@@ -35,6 +47,7 @@ const ModernCrudShell = ({
               onImported={onExcelImported}
             />
           ) : null}
+          {headerExtra}
           {addLabel && addTo ? (
             <Link to={addTo} className="btn modern-crud-add-btn">
               <PlusCircle size={18} />

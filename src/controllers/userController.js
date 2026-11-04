@@ -176,12 +176,20 @@ exports.loginUser = async (req, res) => {
     user.last_login_ip = req.ip || req.connection.remoteAddress;
     await user.save();
 
+    await user.populate("role_id", "name key");
+
     res.status(200).json({
       id: user._id,
+      _id: user._id,
       name: user.name,
       plain_password: user.plain_password,
       email: user.email,
+      phone: user.phone || "",
+      address: user.address || "",
+      image: user.image || "",
       user_type: user.user_type,
+      role_id: user.role_id,
+      role_name: user.role_id?.name || "",
       allowed_pages: user.allowed_pages,
       status: user.status,
       permissions: user.permissions,
@@ -757,16 +765,20 @@ exports.validateLicenseKey = async (req, res) => {
 // Return the currently authenticated user's profile (excluding password).
 exports.getUserProfile = async (req, res) => {
   try {
-    // `protect` middleware sets `req.user`
-    const user = req.user;
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    const userId = req.user?._id || req.user?.id;
+    if (!userId) return res.status(404).json({ message: "User not found" });
 
-    // Ensure we don't leak sensitive fields
-    const userObj = typeof user.toObject === 'function' ? user.toObject() : user;
-    delete userObj.password;
-    delete userObj.plain_password;
+    const user = await User.findById(userId)
+      .select("-password -plain_password -resetOtp -resetOtpExpiry")
+      .populate("role_id", "name key");
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-    res.status(200).json(userObj);
+    const userObj = user.toObject();
+    res.status(200).json({
+      ...userObj,
+      id: userObj._id,
+      role_name: userObj.role_id?.name || "",
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

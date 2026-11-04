@@ -10,6 +10,7 @@ import {
   removePermissionsAction,
   selectRoleAction,
 } from "../../redux/roles/roleSlice";
+import ModernCrudShell from "../../core/components/ModernCrudShell";
 
 const ACTION_LABELS = {
   add: "Create",
@@ -146,17 +147,16 @@ const SecurityPermissionManager = () => {
   );
 
   return (
-    <div className="page-wrapper">
-      <div className="content">
-        <div className="page-header">
-          <div className="add-item d-flex">
-            <div className="page-title">
-              <h4>Security &amp; Permission Management</h4>
-              <h6>Manage security groups and assign permissions</h6>
-            </div>
-          </div>
-        </div>
-
+    <>
+      <ModernCrudShell
+        title="Roles & Permissions"
+        subtitle="Manage security groups and assign permissions."
+        icon={<Shield size={18} />}
+        totalRecords={roles.length}
+        totalLabel="Roles"
+        addLabel="Add Role"
+        onAdd={() => setShowAddModal(true)}
+      >
         <div className="row g-3 security-permission-layout">
           <div className="col-lg-3">
             <div className="card security-panel h-100">
@@ -167,10 +167,10 @@ const SecurityPermissionManager = () => {
                 </div>
                 <button
                   type="button"
-                  className="btn btn-primary btn-sm"
+                  className="btn modern-crud-add-btn btn-sm security-action-btn"
                   onClick={() => setShowAddModal(true)}
                 >
-                  <Plus size={14} className="me-1" />
+                  <Plus size={14} />
                   Add
                 </button>
               </div>
@@ -187,13 +187,12 @@ const SecurityPermissionManager = () => {
                       <div className="d-flex align-items-start justify-content-between gap-2">
                         <div className="text-start">
                           <div className="fw-semibold">{role.name}</div>
-                          <small>
-                            {role.permissionCount || 0} Permissions
-                          </small>
+                          <small>{role.permissionCount || 0} Permissions</small>
                         </div>
                         {!role.isSystem ? (
                           <span
                             className="security-group-menu"
+                            title="Delete role"
                             onClick={(event) => {
                               event.stopPropagation();
                               handleDeleteRole(role);
@@ -202,7 +201,7 @@ const SecurityPermissionManager = () => {
                             <MoreVertical size={16} />
                           </span>
                         ) : (
-                          <Shield size={16} />
+                          <Shield size={16} className="security-system-icon" />
                         )}
                       </div>
                     </button>
@@ -217,7 +216,7 @@ const SecurityPermissionManager = () => {
 
           <div className="col-lg-4">
             <div className="card security-panel h-100">
-              <div className="card-header d-flex align-items-center justify-content-between">
+              <div className="card-header d-flex align-items-center justify-content-between gap-2">
                 <div>
                   <h5 className="mb-0">Assigned Permissions</h5>
                   <small className="text-muted">
@@ -226,7 +225,7 @@ const SecurityPermissionManager = () => {
                 </div>
                 <button
                   type="button"
-                  className="btn btn-outline-danger btn-sm"
+                  className="btn modern-crud-danger-btn btn-sm security-action-btn"
                   disabled={!selectedAssigned.size || loading}
                   onClick={handleRemove}
                 >
@@ -280,7 +279,7 @@ const SecurityPermissionManager = () => {
 
           <div className="col-lg-5">
             <div className="card security-panel h-100">
-              <div className="card-header d-flex align-items-center justify-content-between">
+              <div className="card-header d-flex align-items-center justify-content-between gap-2">
                 <div>
                   <h5 className="mb-0">Available Permissions</h5>
                   <small className="text-muted">
@@ -289,7 +288,7 @@ const SecurityPermissionManager = () => {
                 </div>
                 <button
                   type="button"
-                  className="btn btn-primary btn-sm"
+                  className="btn modern-crud-add-btn btn-sm security-action-btn"
                   disabled={!selectedAvailable.size || loading}
                   onClick={handleAssign}
                 >
@@ -340,17 +339,23 @@ const SecurityPermissionManager = () => {
             </div>
           </div>
         </div>
-      </div>
+      </ModernCrudShell>
 
-      <Modal show={showAddModal} onHide={() => setShowAddModal(false)} centered>
+      <Modal
+        show={showAddModal}
+        onHide={() => setShowAddModal(false)}
+        centered
+        dialogClassName="modern-form-modal"
+      >
         <Modal.Header closeButton>
           <Modal.Title>Add Security Group</Modal.Title>
         </Modal.Header>
         <Form onSubmit={handleCreateRole}>
           <Modal.Body>
             <Form.Group className="mb-3">
-              <Form.Label>Role Name</Form.Label>
+              <Form.Label className="modern-form-label">Role Name</Form.Label>
               <Form.Control
+                className="modern-form-control"
                 value={newRoleName}
                 onChange={(event) => setNewRoleName(event.target.value)}
                 placeholder="e.g. HR Admin"
@@ -358,10 +363,11 @@ const SecurityPermissionManager = () => {
               />
             </Form.Group>
             <Form.Group>
-              <Form.Label>Description</Form.Label>
+              <Form.Label className="modern-form-label">Description</Form.Label>
               <Form.Control
                 as="textarea"
                 rows={3}
+                className="modern-form-control"
                 value={newRoleDescription}
                 onChange={(event) => setNewRoleDescription(event.target.value)}
                 placeholder="Optional description"
@@ -369,16 +375,20 @@ const SecurityPermissionManager = () => {
             </Form.Group>
           </Modal.Body>
           <Modal.Footer>
-            <Button variant="secondary" onClick={() => setShowAddModal(false)}>
+            <Button
+              variant="light"
+              className="modern-form-cancel"
+              onClick={() => setShowAddModal(false)}
+            >
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
+            <Button type="submit" className="modern-form-submit">
               Create Role
             </Button>
           </Modal.Footer>
         </Form>
       </Modal>
-    </div>
+    </>
   );
 };
 

@@ -4,7 +4,7 @@ import { Modal, Button } from "react-bootstrap";
 import dayjs from "dayjs";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
-import { Box, Edit, Trash2 } from "feather-icons-react/build/IconComponents";
+import { Box, Edit, Eye, Trash2 } from "feather-icons-react/build/IconComponents";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 import {
@@ -17,7 +17,9 @@ import { fetchAllCategoriesAction } from "../../redux/categories/categorySlice";
 import { uploadProductImage } from "../../redux/products/productService";
 import ImageWithBasePath from "../../core/img/imagewithbasebath";
 import CrudListToolbar from "../../core/components/CrudListToolbar";
+import { IdBadge, MoneyBadge, QtyBadge } from "../../core/components/CrudValueBadge";
 import ModernCrudShell from "../../core/components/ModernCrudShell";
+import ModernViewDialog from "../../core/components/ModernViewDialog";
 import ProductFormTabs from "../../core/components/ProductFormTabs";
 import { getApiBase } from "../../config/runtimeConfig";
 
@@ -81,6 +83,7 @@ const ProductList = () => {
   const [imagePreview, setImagePreview] = useState("");
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [viewItem, setViewItem] = useState(null);
 
   useEffect(() => {
     dispatch(fetchAllProductsAction());
@@ -282,13 +285,28 @@ const ProductList = () => {
         key: item._id || String(index),
         index: index + 1,
         id: item._id,
+        raw: item,
         name: item.name || "-",
         sku: item.sku || "-",
+        batch: item.batch_number || "-",
+        expiry: item.expiry_date ? dayjs(item.expiry_date).format("YYYY-MM-DD") : "-",
         category: item.category?.name || "-",
         price: item.unit_price != null ? Number(item.unit_price).toFixed(2) : "-",
         priceNum: Number(item.unit_price || 0),
         qty: item.available_quantity ?? 0,
+        minAlert: item.minimum_stock_alert ?? 0,
+        totalValue:
+          item.total_value != null
+            ? Number(item.total_value).toFixed(2)
+            : (Number(item.unit_price || 0) * Number(item.available_quantity || 0)).toFixed(2),
         supplier: item.supplier_name || "-",
+        manufacturer: item.manufacturer || "-",
+        rack: item.rack_location || "-",
+        discount: item.discount != null ? `${item.discount}%` : "-",
+        gst: item.gst != null ? `${item.gst}%` : "-",
+        size: item.medicine_size || "-",
+        status: item.status === "inactive" ? "inactive" : "active",
+        rx: Boolean(item.is_prescription_required),
         image: resolveProductImage(item.image),
         hasRemoteImage: Boolean(
           item.image &&
@@ -300,6 +318,121 @@ const ProductList = () => {
     [filtered],
   );
 
+  const productViewHighlights = useMemo(() => {
+    if (!viewItem) return [];
+    const p = viewItem;
+    const qty = Number(p.available_quantity ?? 0);
+    const money = (n) =>
+      `PKR ${Number(n || 0).toLocaleString("en-PK", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+    return [
+      { label: "Unit price", value: money(p.unit_price), tone: "info" },
+      {
+        label: "In stock",
+        value: qty,
+        tone: qty <= 0 ? "danger" : qty <= 5 ? "warn" : "ok",
+      },
+      {
+        label: "Stock value",
+        value: money(p.total_value ?? Number(p.unit_price || 0) * qty),
+        tone: "ok",
+      },
+      {
+        label: "Category",
+        value: p.category?.name || p.category || "—",
+        tone: "neutral",
+      },
+    ];
+  }, [viewItem]);
+
+  const productViewSections = useMemo(() => {
+    if (!viewItem) return [];
+    const p = viewItem;
+    const money = (n) =>
+      n == null || n === ""
+        ? null
+        : `PKR ${Number(n).toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return [
+      {
+        title: "Product identity",
+        fields: [
+          { label: "Product name", value: p.name },
+          { label: "SKU", value: p.sku, mono: true },
+          { label: "Batch number", value: p.batch_number, mono: true },
+          {
+            label: "Expiry date",
+            value: p.expiry_date ? dayjs(p.expiry_date).format("MMM D, YYYY") : null,
+          },
+          { label: "Medicine size", value: p.medicine_size },
+          {
+            label: "Prescription required",
+            value: p.is_prescription_required,
+            type: "bool",
+          },
+          { label: "Status", value: p.status === "inactive" ? "Inactive" : "Active" },
+          { label: "Rack location", value: p.rack_location },
+        ],
+      },
+      {
+        title: "Pricing & tax",
+        fields: [
+          { label: "Unit price", value: money(p.unit_price) },
+          {
+            label: "Total stock value",
+            value: money(
+              p.total_value ?? Number(p.unit_price || 0) * Number(p.available_quantity || 0),
+            ),
+          },
+          { label: "Discount", value: p.discount != null ? `${p.discount}%` : null },
+          { label: "GST / Tax", value: (p.gst ?? p.tax) != null ? `${p.gst ?? p.tax}%` : null },
+          { label: "Available quantity", value: p.available_quantity },
+          { label: "Minimum stock alert", value: p.minimum_stock_alert },
+        ],
+      },
+      {
+        title: "Supplier & manufacturer",
+        fields: [
+          { label: "Supplier", value: p.supplier_name },
+          { label: "Manufacturer", value: p.manufacturer },
+          { label: "License number", value: p.manufacturer_license_no, mono: true },
+          { label: "Registration number", value: p.manufacturer_registration_no, mono: true },
+        ],
+      },
+      {
+        title: "Notes & history",
+        fullWidth: true,
+        fields: [
+          {
+            label: "Alternative medicines",
+            value: Array.isArray(p.alternative_medicines)
+              ? p.alternative_medicines
+              : p.alternative_medicines,
+            type: "list",
+            span: 2,
+            hideIfEmpty: true,
+          },
+          {
+            label: "Storage instructions",
+            value: p.storage_instructions,
+            span: 2,
+            hideIfEmpty: true,
+          },
+          { label: "Notes", value: p.notes, span: 2, hideIfEmpty: true },
+          {
+            label: "Created",
+            value: p.createdAt ? dayjs(p.createdAt).format("MMM D, YYYY h:mm A") : null,
+          },
+          {
+            label: "Last updated",
+            value: p.updatedAt ? dayjs(p.updatedAt).format("MMM D, YYYY h:mm A") : null,
+          },
+        ],
+      },
+    ];
+  }, [viewItem]);
+
   const stockBadge = (qty) => {
     if (qty <= 0) return <span className="modern-crud-badge is-danger">Out</span>;
     if (qty <= 5) return <span className="modern-crud-badge is-warn">Low</span>;
@@ -307,62 +440,74 @@ const ProductList = () => {
   };
 
   const columns = [
-    { title: "#", dataIndex: "index", width: 60 },
+    { title: "#", dataIndex: "index", width: 56 },
     {
       title: "Product",
       dataIndex: "name",
-      render: (text, record) => (
-        <span className="productimgname d-inline-flex align-items-center gap-2">
-          {record.hasRemoteImage ? (
-            <img
-              alt={text}
-              src={record.image}
-              style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8 }}
-            />
-          ) : (
-            <ImageWithBasePath alt={text} src={record.image} />
-          )}
-          <span>{text}</span>
-        </span>
-      ),
       sorter: (a, b) => String(a.name).localeCompare(String(b.name)),
-    },
-    {
-      title: "SKU",
-      dataIndex: "sku",
-      sorter: (a, b) => String(a.sku).localeCompare(String(b.sku)),
+      render: (text, record) => (
+        <div className="mc-cell-product">
+          {record.hasRemoteImage ? (
+            <img alt={text} src={record.image} className="mc-cell-product__img" />
+          ) : (
+            <span className="mc-cell-product__img is-fallback">
+              <ImageWithBasePath alt={text} src={record.image} />
+            </span>
+          )}
+          <div className="mc-cell-stack">
+            <div className="mc-cell-title">{text}</div>
+            <div className="mc-cell-meta">
+              <IdBadge value={record.sku} />
+            </div>
+          </div>
+        </div>
+      ),
     },
     {
       title: "Category",
       dataIndex: "category",
       sorter: (a, b) => String(a.category).localeCompare(String(b.category)),
+      render: (v) => <span className="mc-value-badge is-neutral">{v}</span>,
     },
     {
       title: "Price",
       dataIndex: "price",
-      render: (v) => `PKR ${v}`,
+      render: (v) => <MoneyBadge value={v} tone="info" prefix="PKR" />,
       sorter: (a, b) => a.priceNum - b.priceNum,
     },
     {
       title: "Qty",
       dataIndex: "qty",
+      sorter: (a, b) => Number(a.qty) - Number(b.qty),
       render: (qty) => (
         <span className="d-inline-flex align-items-center gap-2">
-          {qty} {stockBadge(qty)}
+          <QtyBadge
+            value={qty}
+            tone={Number(qty) <= 0 ? "danger" : Number(qty) <= 5 ? "warn" : "ok"}
+          />
+          {stockBadge(qty)}
         </span>
       ),
-      sorter: (a, b) => Number(a.qty) - Number(b.qty),
     },
     {
       title: "Supplier",
       dataIndex: "supplier",
       sorter: (a, b) => String(a.supplier).localeCompare(String(b.supplier)),
+      ellipsis: true,
     },
     {
       title: "Action",
-      width: 110,
+      width: 130,
       render: (_text, record) => (
         <div className="modern-crud-actions">
+          <button
+            type="button"
+            className="modern-crud-icon-btn"
+            onClick={() => setViewItem(record.raw)}
+            title="View details"
+          >
+            <Eye size={15} />
+          </button>
           <button type="button" className="modern-crud-icon-btn" onClick={() => openEdit(record)} title="Edit">
             <Edit size={15} />
           </button>
@@ -395,6 +540,7 @@ const ProductList = () => {
         title="Products"
         subtitle="Manage your products."
         icon={<Box size={18} />}
+        totalRecords={filtered.length}
         addLabel="Add Product"
         onAdd={openCreate}
         excelResource="/products"
@@ -446,6 +592,44 @@ const ProductList = () => {
           />
         </div>
       </ModernCrudShell>
+
+      <ModernViewDialog
+        show={Boolean(viewItem)}
+        onHide={() => setViewItem(null)}
+        title={viewItem?.name || "Product"}
+        subtitle={viewItem?.sku ? `SKU ${viewItem.sku}` : "Product details"}
+        imageUrl={viewItem?.image ? resolveProductImage(viewItem.image) : ""}
+        imageAlt={viewItem?.name || "Product"}
+        badge={
+          viewItem ? (
+            <span
+              className={`modern-crud-badge ${
+                viewItem.status === "inactive" ? "is-danger" : "is-ok"
+              }`}
+            >
+              {viewItem.status === "inactive" ? "Inactive" : "Active"}
+            </span>
+          ) : null
+        }
+        highlights={productViewHighlights}
+        sections={productViewSections}
+        sectionColumns={2}
+        size="lg"
+        footerExtra={
+          viewItem ? (
+            <Button
+              className="modern-form-submit"
+              onClick={() => {
+                const row = dataSource.find((r) => r.id === viewItem._id);
+                setViewItem(null);
+                if (row) openEdit(row);
+              }}
+            >
+              Edit product
+            </Button>
+          ) : null
+        }
+      />
 
       <Modal show={showModal} onHide={closeModal} centered size="xl" scrollable dialogClassName="modern-form-modal">
         <Modal.Header closeButton>

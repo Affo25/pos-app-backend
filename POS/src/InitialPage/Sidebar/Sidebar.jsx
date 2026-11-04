@@ -1,12 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Scrollbars from "react-custom-scrollbars-2";
 import { Link, useLocation } from "react-router-dom";
-import { useSelector } from "react-redux";
 import { SidebarData } from "../../core/json/siderbar_data";
 import HorizontalSidebar from "./horizontalSidebar";
 import CollapsedSidebar from "./collapsedSidebar";
-import { getApiBase } from "../../config/runtimeConfig";
-import { resolveUploadUrl } from "../../utils/invoicePrint";
 
 const collectLinks = (items = []) => {
   const links = [];
@@ -19,18 +16,11 @@ const collectLinks = (items = []) => {
 
 const Sidebar = () => {
   const Location = useLocation();
-  const settings = useSelector((state) => state.settings?.settings);
-  const sidebarBrand = useMemo(() => {
-    const design = settings?.invoiceDesign || {};
-    return {
-      logo: resolveUploadUrl(design.sidebarLogoUrl || design.logoUrl, getApiBase()),
-      name: design.companyName || "",
-    };
-  }, [settings]);
 
   const initialOpen = useMemo(() => {
     const open = {};
     SidebarData.forEach((section) => {
+      if (!section.submenu) return;
       const links = collectLinks(section.submenuItems || []);
       const hasActive = links.includes(Location.pathname);
       open[section.label] = hasActive || Boolean(section.submenuOpen);
@@ -43,6 +33,7 @@ const Sidebar = () => {
 
   useEffect(() => {
     SidebarData.forEach((section) => {
+      if (!section.submenu) return;
       const links = collectLinks(section.submenuItems || []);
       if (links.includes(Location.pathname)) {
         setOpenMenus((prev) => ({ ...prev, [section.label]: true }));
@@ -58,24 +49,34 @@ const Sidebar = () => {
     setNestedOpen((prev) => (prev === label ? "" : label));
   };
 
+  const isDashboardPath =
+    Location.pathname === "/" ||
+    Location.pathname === "/dashboard" ||
+    Location.pathname === "/index";
+
   return (
     <div>
       <div className="sidebar" id="sidebar">
         <Scrollbars>
           <div className="sidebar-inner slimscroll">
             <div id="sidebar-menu" className="sidebar-menu">
-              {sidebarBrand.logo || sidebarBrand.name ? (
-                <div className="sidebar-brand-block">
-                  {sidebarBrand.logo ? (
-                    <img src={sidebarBrand.logo} alt="" className="sidebar-brand-logo" />
-                  ) : null}
-                  {sidebarBrand.name ? (
-                    <span className="sidebar-brand-name">{sidebarBrand.name}</span>
-                  ) : null}
-                </div>
-              ) : null}
               <ul>
                 {SidebarData.map((section) => {
+                  if (!section.submenu) {
+                    const link = section.link || "#";
+                    const active =
+                      link === Location.pathname ||
+                      (section.label === "Dashboard" && isDashboardPath);
+                    return (
+                      <li key={section.label} className={active ? "active" : ""}>
+                        <Link to={link} className={active ? "active" : ""}>
+                          {section.icon}
+                          <span>{section.label}</span>
+                        </Link>
+                      </li>
+                    );
+                  }
+
                   const sectionLinks = collectLinks(section.submenuItems || []);
                   const sectionActive = sectionLinks.includes(Location.pathname);
                   const isOpen = Boolean(openMenus[section.label]);
@@ -84,12 +85,12 @@ const Sidebar = () => {
                     <li
                       key={section.label}
                       className={`submenu${isOpen ? " submenu-open" : ""}${
-                        sectionActive ? " active" : ""
+                        sectionActive ? " has-active-child" : ""
                       }`}
                     >
                       <Link
                         to="#"
-                        className={`${isOpen ? "subdrop" : ""}${sectionActive ? " active" : ""}`}
+                        className={isOpen ? "subdrop" : ""}
                         onClick={(e) => {
                           e.preventDefault();
                           toggleMain(section.label);

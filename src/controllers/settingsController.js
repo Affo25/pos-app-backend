@@ -29,9 +29,22 @@ exports.getSettings = async (req, res) => {
   }
 };
 
+const ALLOWED_PDF_TEMPLATES = [
+  'modern_sale_a4',
+  'modern_po_a4',
+  'report_a4',
+  'purchase_order_a4',
+  'restaurant_80mm',
+  'a4_80mm_strip',
+  'pos_receipt',
+];
+
 const INVOICE_KEYS = [
   'template',
+  'saleTemplate',
+  'purchaseOrderTemplate',
   'companyName',
+  'appName',
   'tagline',
   'address',
   'phone',
@@ -41,6 +54,8 @@ const INVOICE_KEYS = [
   'receiptWebsite',
   'logoUrl',
   'sidebarLogoUrl',
+  'appLogoUrl',
+  'connectedPrinter',
   'primaryColor',
   'secondaryColor',
   'buttonColor',
@@ -61,12 +76,18 @@ exports.updateSettings = async (req, res) => {
     const doc = await getOrCreateSettings(ownerId);
     const { invoiceDesign } = req.body || {};
     if (invoiceDesign && typeof invoiceDesign === 'object') {
-      const allowedTemplates = ['report_a4', 'restaurant_80mm', 'a4_80mm_strip', 'pos_receipt', 'purchase_order_a4'];
       for (const k of INVOICE_KEYS) {
         if (Object.prototype.hasOwnProperty.call(invoiceDesign, k)) {
           let v = invoiceDesign[k];
-          if (k === 'template' && typeof v === 'string' && !allowedTemplates.includes(v)) {
-            v = 'a4_80mm_strip';
+          if (
+            ['template', 'saleTemplate', 'purchaseOrderTemplate'].includes(k) &&
+            typeof v === 'string' &&
+            !ALLOWED_PDF_TEMPLATES.includes(v)
+          ) {
+            v =
+              k === 'purchaseOrderTemplate'
+                ? 'modern_po_a4'
+                : 'modern_sale_a4';
           }
           if (k === 'posLayout' && typeof v === 'string') {
             const vn = v.trim().toLowerCase();
@@ -89,6 +110,10 @@ exports.updateSettings = async (req, res) => {
         doc.invoiceDesign.secondaryColor = invoiceDesign.sidebarColor.trim();
       } else if (invoiceDesign.secondaryColor && isHexColor(invoiceDesign.secondaryColor)) {
         doc.invoiceDesign.sidebarColor = invoiceDesign.secondaryColor.trim();
+      }
+      // Keep legacy `template` aligned with sale PDF choice for older clients
+      if (doc.invoiceDesign.saleTemplate) {
+        doc.invoiceDesign.template = doc.invoiceDesign.saleTemplate;
       }
     }
     await doc.save();
@@ -162,6 +187,41 @@ exports.uploadSidebarLogo = async (req, res) => {
   } catch (err) {
     console.error('uploadSidebarLogo', err);
     return res.status(500).json({ error: 'Sidebar logo upload failed', detail: err.message });
+  }
+};
+
+/**
+ * POST /api/settings/app-logo — multipart field "file"
+ * Stores under sidebar-logos and sets appLogoUrl (+ sidebarLogoUrl for chrome).
+ */
+exports.uploadAppLogo = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const ownerId = getTenantOwnerId(req.user);
+    if (!ownerId) return res.status(400).json({ error: 'Could not resolve tenant' });
+
+    const publicPath = `/uploads/sidebar-logos/${req.file.filename}`;
+    const doc = await getOrCreateSettings(ownerId);
+
+    if (doc.invoiceDesign.appLogoUrl && doc.invoiceDesign.appLogoUrl.startsWith('/uploads/sidebar-logos/')) {
+      const oldName = path.basename(doc.invoiceDesign.appLogoUrl);
+      const oldAbs = path.join(path.dirname(req.file.path), oldName);
+      if (oldAbs !== req.file.path) {
+        try {
+          if (fs.existsSync(oldAbs)) fs.unlinkSync(oldAbs);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+
+    doc.invoiceDesign.appLogoUrl = publicPath;
+    doc.invoiceDesign.sidebarLogoUrl = publicPath;
+    await doc.save();
+    return res.json({ settings: doc, appLogoUrl: publicPath, sidebarLogoUrl: publicPath });
+  } catch (err) {
+    console.error('uploadAppLogo', err);
+    return res.status(500).json({ error: 'App logo upload failed', detail: err.message });
   }
 };
 

@@ -13,47 +13,31 @@ const money = (n) =>
     maximumFractionDigits: 2,
   })}`;
 
-const StatCard = ({ title, value, icon, color, to }) => (
-  <div className="col-xl-3 col-sm-6 col-12 mb-3">
-    <div
-      className="card border-0 h-100"
-      style={{
-        borderRadius: 16,
-        boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
-      }}
-    >
-      <div className="card-body">
-        <div className="d-flex align-items-start justify-content-between mb-3">
-          <div
-            className="d-flex align-items-center justify-content-center"
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 12,
-              background: `${color}18`,
-              color,
-            }}
-          >
-            {icon}
-          </div>
-        </div>
-        <h6 className="text-muted mb-1" style={{ fontWeight: 500 }}>
-          {title}
-        </h6>
-        <h2 className="mb-3" style={{ fontWeight: 700, fontSize: 28 }}>
-          {value}
-        </h2>
-        {to ? (
-          <Link to={to} className="text-decoration-none" style={{ color: "#64748b", fontSize: 13 }}>
-            Show Details
-          </Link>
-        ) : (
-          <span style={{ color: "#94a3b8", fontSize: 13 }}>Show Details</span>
-        )}
+const StatCard = ({ title, value, icon, tone = "emerald", to }) => {
+  const inner = (
+    <div className={`dash-color-card dash-color-card--${tone}`}>
+      <div className="dash-color-card__copy">
+        <span className="dash-color-card__label">{title}</span>
+        <strong className="dash-color-card__value">{value}</strong>
+      </div>
+      <div className="dash-color-card__icon" aria-hidden="true">
+        {icon}
       </div>
     </div>
-  </div>
-);
+  );
+
+  return (
+    <div className="col-xl-3 col-sm-6 col-12 mb-3">
+      {to ? (
+        <Link to={to} className="dash-color-card-link">
+          {inner}
+        </Link>
+      ) : (
+        inner
+      )}
+    </div>
+  );
+};
 
 const statusPill = (status) => {
   const s = String(status || "pending").toLowerCase();
@@ -81,6 +65,51 @@ const statusPill = (status) => {
   );
 };
 
+const RANGE_PRESETS = [
+  { key: "today", label: "Today" },
+  { key: "week", label: "Weekly" },
+  { key: "month", label: "Monthly" },
+  { key: "custom", label: "Date wise" },
+];
+
+const resolveRange = (preset, customStart, customEnd) => {
+  const today = dayjs();
+  if (preset === "today") {
+    return {
+      startDate: today.format("YYYY-MM-DD"),
+      endDate: today.format("YYYY-MM-DD"),
+      overviewPeriod: "week",
+    };
+  }
+  if (preset === "week") {
+    return {
+      startDate: today.startOf("week").format("YYYY-MM-DD"),
+      endDate: today.format("YYYY-MM-DD"),
+      overviewPeriod: "week",
+    };
+  }
+  if (preset === "custom") {
+    const start = dayjs(customStart);
+    const end = dayjs(customEnd);
+    const safeStart = start.isValid() ? start : today;
+    const safeEnd = end.isValid() ? end : today;
+    const ordered =
+      safeStart.isAfter(safeEnd, "day")
+        ? { start: safeEnd, end: safeStart }
+        : { start: safeStart, end: safeEnd };
+    return {
+      startDate: ordered.start.format("YYYY-MM-DD"),
+      endDate: ordered.end.format("YYYY-MM-DD"),
+      overviewPeriod: "week",
+    };
+  }
+  return {
+    startDate: today.startOf("month").format("YYYY-MM-DD"),
+    endDate: today.format("YYYY-MM-DD"),
+    overviewPeriod: "month",
+  };
+};
+
 const Dashboard = () => {
   const route = all_routes;
   const [loading, setLoading] = useState(true);
@@ -89,18 +118,31 @@ const Dashboard = () => {
   const [overview, setOverview] = useState(null);
   const [products, setProducts] = useState([]);
   const [chartMode, setChartMode] = useState("month");
+  const [rangePreset, setRangePreset] = useState("today");
+  const [customStart, setCustomStart] = useState(dayjs().startOf("month").format("YYYY-MM-DD"));
+  const [customEnd, setCustomEnd] = useState(dayjs().format("YYYY-MM-DD"));
+
+  const activeRange = useMemo(
+    () => resolveRange(rangePreset, customStart, customEnd),
+    [rangePreset, customStart, customEnd],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const endDate = dayjs().format("YYYY-MM-DD");
+      const overviewPeriod =
+        chartMode === "year" ? "year" : activeRange.overviewPeriod || "month";
       const [dash, ov, productList] = await Promise.all([
         analyticsService.fetchDashboard({
-          startDate: dayjs().startOf("month").format("YYYY-MM-DD"),
-          endDate,
+          startDate: activeRange.startDate,
+          endDate: activeRange.endDate,
         }),
-        analyticsService.fetchSalesOverview({ period: chartMode === "year" ? "year" : "month" }),
+        analyticsService.fetchSalesOverview({
+          period: overviewPeriod,
+          startDate: activeRange.startDate,
+          endDate: activeRange.endDate,
+        }),
         fetchAllProducts().catch(() => []),
       ]);
       setDashboard(dash);
@@ -111,7 +153,7 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [chartMode]);
+  }, [chartMode, activeRange]);
 
   useEffect(() => {
     load();
@@ -253,10 +295,54 @@ const Dashboard = () => {
   return (
     <div className="page-wrapper" style={{ background: "#f3f4f6" }}>
       <div className="content">
-        <div className="page-header mb-3">
+        <div className="page-header mb-3 dash-page-header">
           <div className="page-title">
             <h4 style={{ fontWeight: 700 }}>Dashboard</h4>
-            <h6 className="text-muted mb-0">Pharmacy overview</h6>
+            <h6 className="text-muted mb-0">
+              Pharmacy overview · {dayjs(activeRange.startDate).format("DD MMM YYYY")}
+              {activeRange.startDate !== activeRange.endDate
+                ? ` – ${dayjs(activeRange.endDate).format("DD MMM YYYY")}`
+                : ""}
+            </h6>
+          </div>
+          <div className="dash-filter-bar">
+            <div className="dash-filter-presets" role="group" aria-label="Date range">
+              {RANGE_PRESETS.map((preset) => (
+                <button
+                  key={preset.key}
+                  type="button"
+                  className={`dash-filter-btn${rangePreset === preset.key ? " is-active" : ""}`}
+                  onClick={() => setRangePreset(preset.key)}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+            {rangePreset === "custom" ? (
+              <div className="dash-filter-dates">
+                <label className="dash-filter-date">
+                  <span>From</span>
+                  <input
+                    type="date"
+                    className="form-control form-control-sm"
+                    value={customStart}
+                    max={customEnd}
+                    onChange={(e) => setCustomStart(e.target.value)}
+                  />
+                </label>
+                <label className="dash-filter-date">
+                  <span>To</span>
+                  <input
+                    type="date"
+                    className="form-control form-control-sm"
+                    value={customEnd}
+                    min={customStart}
+                    max={dayjs().format("YYYY-MM-DD")}
+                    onChange={(e) => setCustomEnd(e.target.value)}
+                  />
+                </label>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -266,33 +352,33 @@ const Dashboard = () => {
           </div>
         ) : null}
 
-        <div className="row">
+        <div className="row dash-color-cards">
           <StatCard
             title="Total Customer"
             value={loading ? "—" : totalCustomers}
-            icon={<Users size={22} />}
-            color="#3b82f6"
+            icon={<Users size={54} strokeWidth={1.6} />}
+            tone="blue"
             to={route.customers}
           />
           <StatCard
             title="Total Sales"
             value={loading ? "—" : totalSalesCount || recentOrders.length}
-            icon={<ShoppingCart size={22} />}
-            color="#22c55e"
+            icon={<ShoppingCart size={54} strokeWidth={1.6} />}
+            tone="emerald"
             to={route.saleslist}
           />
           <StatCard
             title="Total Profit"
             value={loading ? "—" : money(profit)}
-            icon={<DollarSign size={22} />}
-            color="#eab308"
+            icon={<DollarSign size={54} strokeWidth={1.6} />}
+            tone="amber"
             to={route.saleslist}
           />
           <StatCard
             title="Out of Stock"
             value={loading ? "—" : outOfStock}
-            icon={<AlertOctagon size={22} />}
-            color="#ef4444"
+            icon={<AlertOctagon size={54} strokeWidth={1.6} />}
+            tone="red"
             to={route.productlist}
           />
         </div>
@@ -308,8 +394,8 @@ const Dashboard = () => {
                   <h5 className="mb-0" style={{ fontWeight: 700 }}>
                     Expiring List
                   </h5>
-                  <Link to={route.productlist} className="text-decoration-none" style={{ color: "#64748b" }}>
-                    See All &gt;
+                  <Link to={route.productlist} className="btn btn-sm dash-see-all-btn">
+                    See All
                   </Link>
                 </div>
                 <div className="table-responsive">
@@ -359,8 +445,8 @@ const Dashboard = () => {
                   <h5 className="mb-0" style={{ fontWeight: 700 }}>
                     Recent Orders
                   </h5>
-                  <Link to={route.saleslist} className="text-decoration-none" style={{ color: "#64748b" }}>
-                    See All &gt;
+                  <Link to={route.saleslist} className="btn btn-sm dash-see-all-btn">
+                    See All
                   </Link>
                 </div>
                 <div className="table-responsive">

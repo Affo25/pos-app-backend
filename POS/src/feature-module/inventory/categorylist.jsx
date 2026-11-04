@@ -2,12 +2,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Table } from "antd";
 import { Modal, Button } from "react-bootstrap";
 import { useDispatch, useSelector } from "react-redux";
-import { Edit, Grid, Trash2 } from "feather-icons-react/build/IconComponents";
+import { Edit, Eye, Grid, Trash2 } from "feather-icons-react/build/IconComponents";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 import dayjs from "dayjs";
 import CrudListToolbar from "../../core/components/CrudListToolbar";
 import ModernCrudShell from "../../core/components/ModernCrudShell";
+import ModernViewDialog from "../../core/components/ModernViewDialog";
 import {
   createCategoryAction,
   deleteCategoryAction,
@@ -28,6 +29,7 @@ const CategoryList = () => {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [filtersOpen, setFiltersOpen] = useState(true);
+  const [viewItem, setViewItem] = useState(null);
 
   useEffect(() => {
     dispatch(fetchAllCategoriesAction());
@@ -126,9 +128,17 @@ const CategoryList = () => {
     },
     {
       title: "Action",
-      width: 110,
+      width: 130,
       render: (_, row) => (
         <div className="modern-crud-actions">
+          <button
+            type="button"
+            className="modern-crud-icon-btn"
+            onClick={() => setViewItem(row)}
+            title="View"
+          >
+            <Eye size={15} />
+          </button>
           <button type="button" className="modern-crud-icon-btn" onClick={() => openEdit(row)} title="Edit">
             <Edit size={15} />
           </button>
@@ -151,6 +161,7 @@ const CategoryList = () => {
         title="Categories"
         subtitle="Manage your categories."
         icon={<Grid size={18} />}
+        totalRecords={filtered.length}
         addLabel="Add Category"
         onAdd={openCreate}
         excelResource="/categorys"
@@ -191,6 +202,43 @@ const CategoryList = () => {
           />
         </div>
       </ModernCrudShell>
+
+      <ModernViewDialog
+        show={Boolean(viewItem)}
+        onHide={() => setViewItem(null)}
+        title={viewItem?.name || "Category"}
+        subtitle="Category details"
+        fields={[
+          { label: "Name", value: viewItem?.name },
+          {
+            label: "Created",
+            value: viewItem?.createdAt
+              ? dayjs(viewItem.createdAt).format("MMM D, YYYY h:mm A")
+              : null,
+          },
+          { label: "Description", value: viewItem?.description, span: 2 },
+          {
+            label: "Updated",
+            value: viewItem?.updatedAt
+              ? dayjs(viewItem.updatedAt).format("MMM D, YYYY h:mm A")
+              : null,
+          },
+        ]}
+        footerExtra={
+          viewItem ? (
+            <Button
+              className="modern-form-submit"
+              onClick={() => {
+                const row = viewItem;
+                setViewItem(null);
+                openEdit(row);
+              }}
+            >
+              Edit category
+            </Button>
+          ) : null
+        }
+      />
 
       <Modal show={showModal} onHide={closeModal} centered dialogClassName="modern-form-modal">
         <Modal.Header closeButton>

@@ -34,3 +34,13 @@ export const uploadSidebarLogo = async (file) => {
   });
   return parseResponse(response, "Failed to upload sidebar logo");
 };
+
+export const uploadAppLogo = async (file) => {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await authFetchForm(`${API_URL}/app-logo`, {
+    method: "POST",
+    body: form,
+  });
+  return parseResponse(response, "Failed to upload app logo");
+};

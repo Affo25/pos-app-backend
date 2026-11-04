@@ -19,6 +19,9 @@ export function saleToInvoicePayload(sale) {
     discount_amount: sale.discount_amount,
     tax_amount: sale.tax_amount,
     net_amount: sale.net_amount,
+    notes: sale.notes || "",
+    reference_no: sale.reference_no || "",
+    cashier_name: sale.cashier_name || sale.created_by_name || "",
     items: (sale.items || []).map((it) => ({
       product_name: it.product_name || it.name || "Item",
       name: it.product_name || it.name || "Item",
@@ -72,11 +75,8 @@ export function purchaseOrderToInvoicePayload(po) {
   };
 }
 
-/**
- * Open branded PDF preview in a new tab (uses tenant settings on the server).
- */
-export async function openInvoicePreview(invoice, template) {
-  if (!invoice) return;
+async function postInvoicePdf(invoice, template) {
+  if (!invoice) throw new Error("Invoice data is required");
   const token = Cookies.get("token");
   const response = await fetch(apiUrl("/print/preview"), {
     method: "POST",
@@ -96,10 +96,127 @@ export async function openInvoicePreview(invoice, template) {
     }
     throw new Error(message);
   }
+  return response.blob();
+}
+
+function triggerBlobDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename || "download.pdf";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  return url;
+}
+
+/** Create an object URL for the branded invoice PDF (caller should revoke). */
+export async function fetchInvoicePdfBlobUrl(invoice, template) {
+  const blob = await postInvoicePdf(invoice, template);
+  return URL.createObjectURL(blob);
+}
+
+/** Download branded invoice/PO PDF to the device. */
+export async function downloadInvoicePdf(invoice, template, filename) {
+  const blob = await postInvoicePdf(invoice, template);
+  const name =
+    filename ||
+    `${invoice?.document_type || "invoice"}-${invoice?.invoice_no || Date.now()}.pdf`;
+  triggerBlobDownload(blob, name);
+  return name;
+}
+
+/**
+ * Open branded PDF preview in a new tab; falls back to download if popup blocked.
+ */
+export async function openInvoicePreview(invoice, template) {
+  const blob = await postInvoicePdf(invoice, template);
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, "_blank", "noopener,noreferrer");
+  if (!win) {
+    triggerBlobDownload(blob, `${invoice?.invoice_no || "invoice"}.pdf`);
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  return url;
+}
+
+/**
+ * Download a list/register PDF via POST /print/sales-register/preview.
+ * Records shape: { invoice_no, customer_name, date_label, total_amount, net_amount, status }
+ */
+export async function downloadRegisterPdf({
+  records,
+  subtitle = "",
+  filename = "register.pdf",
+  generated_at,
+} = {}) {
+  if (!Array.isArray(records)) {
+    throw new Error("records array is required");
+  }
+  const token = Cookies.get("token");
+  const response = await fetch(apiUrl("/print/sales-register/preview"), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      records,
+      subtitle,
+      generated_at: generated_at || new Date().toLocaleString("en-GB"),
+    }),
+  });
+  if (!response.ok) {
+    let message = "Failed to generate PDF";
+    try {
+      const err = await response.json();
+      message = err?.error || err?.detail || message;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message);
+  }
   const blob = await response.blob();
+  triggerBlobDownload(blob, filename);
   const url = URL.createObjectURL(blob);
   window.open(url, "_blank", "noopener,noreferrer");
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  return filename;
+}
+
+/** Send invoice to a Windows printer via backend (optional printer name). */
+export async function printInvoiceToDevice(invoice, template, printer) {
+  if (!invoice) throw new Error("Invoice data is required");
+  const token = Cookies.get("token");
+  const response = await fetch(apiUrl("/print/invoice"), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ invoice, template, printer }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error || payload?.detail || "Print failed");
+  }
+  return payload;
+}
+
+export async function fetchPrinters() {
+  const token = Cookies.get("token");
+  const response = await fetch(apiUrl("/print/printers"), {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error || payload?.detail || "Failed to list printers");
+  }
+  return Array.isArray(payload?.printers) ? payload.printers : [];
 }
 
 export function resolveUploadUrl(path, apiBase) {

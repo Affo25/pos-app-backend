@@ -10,16 +10,66 @@ import {
 import * as settingService from "../../../redux/settings/settingService";
 import { getApiBase } from "../../../config/runtimeConfig";
 import { resolveUploadUrl } from "../../../utils/invoicePrint";
+import { DEFAULT_APP_NAME, getDefaultAppLogoUrl } from "../../../utils/appBranding";
+import PrinterConnectPanel from "../../../components/PrinterConnectPanel";
 
-const TEMPLATE_OPTIONS = [
-  { value: "pos_receipt", label: "POS receipt (classic duplicate style)" },
-  { value: "a4_80mm_strip", label: "A4 80mm strip" },
-  { value: "report_a4", label: "Report A4" },
-  { value: "restaurant_80mm", label: "Restaurant 80mm" },
+const SALE_PDF_TEMPLATES = [
+  {
+    value: "modern_sale_a4",
+    label: "Modern A4",
+    desc: "Professional emerald invoice with accent bar",
+    tone: "sale",
+  },
+  {
+    value: "report_a4",
+    label: "Classic A4",
+    desc: "Clean report-style tax invoice",
+    tone: "sale",
+  },
+  {
+    value: "pos_receipt",
+    label: "POS receipt",
+    desc: "Thermal duplicate receipt style",
+    tone: "receipt",
+  },
+  {
+    value: "a4_80mm_strip",
+    label: "80mm strip",
+    desc: "Narrow A4 strip for small printers",
+    tone: "receipt",
+  },
+  {
+    value: "restaurant_80mm",
+    label: "Restaurant 80mm",
+    desc: "Compact kitchen / counter layout",
+    tone: "receipt",
+  },
+];
+
+const PO_PDF_TEMPLATES = [
+  {
+    value: "modern_po_a4",
+    label: "Modern A4",
+    desc: "Professional purchase order matching sales",
+    tone: "po",
+  },
+  {
+    value: "purchase_order_a4",
+    label: "Classic PO",
+    desc: "Formal navy purchase order layout",
+    tone: "po",
+  },
+  {
+    value: "report_a4",
+    label: "Report A4",
+    desc: "Shared report-style document",
+    tone: "po",
+  },
 ];
 
 const emptyForm = {
   companyName: "",
+  appName: DEFAULT_APP_NAME,
   tagline: "",
   address: "",
   phone: "",
@@ -31,11 +81,15 @@ const emptyForm = {
   receiptWebsite: "",
   logoUrl: "",
   sidebarLogoUrl: "",
-  primaryColor: "#c4f45d",
-  secondaryColor: "#0d2b26",
-  buttonColor: "#c4f45d",
-  sidebarColor: "#0d2b26",
-  template: "pos_receipt",
+  appLogoUrl: "",
+  connectedPrinter: "",
+  primaryColor: "#306844",
+  secondaryColor: "#182c25",
+  buttonColor: "#306844",
+  sidebarColor: "#182c25",
+  template: "modern_sale_a4",
+  saleTemplate: "modern_sale_a4",
+  purchaseOrderTemplate: "modern_po_a4",
   posLayout: "tabular",
 };
 
@@ -43,11 +97,13 @@ const GeneralSettings = () => {
   const dispatch = useDispatch();
   const { settings, loading } = useSelector((state) => state.settings);
   const [form, setForm] = useState(emptyForm);
-  const [tab, setTab] = useState("invoice");
+  const [tab, setTab] = useState("app");
   const [uploadingInvoice, setUploadingInvoice] = useState(false);
   const [uploadingSidebar, setUploadingSidebar] = useState(false);
+  const [uploadingApp, setUploadingApp] = useState(false);
   const invoiceLogoRef = useRef(null);
   const sidebarLogoRef = useRef(null);
+  const appLogoRef = useRef(null);
 
   useEffect(() => {
     dispatch(fetchSettingsAction());
@@ -66,8 +122,14 @@ const GeneralSettings = () => {
       buttonColor: button,
       secondaryColor: sidebar,
       sidebarColor: sidebar,
+      appName: design.appName || DEFAULT_APP_NAME,
       logoUrl: design.logoUrl || "",
       sidebarLogoUrl: design.sidebarLogoUrl || "",
+      appLogoUrl: design.appLogoUrl || "",
+      connectedPrinter: design.connectedPrinter || "",
+      saleTemplate: design.saleTemplate || design.template || "modern_sale_a4",
+      purchaseOrderTemplate: design.purchaseOrderTemplate || "modern_po_a4",
+      template: design.saleTemplate || design.template || "modern_sale_a4",
     });
   }, [settings]);
 
@@ -80,6 +142,10 @@ const GeneralSettings = () => {
     () => resolveUploadUrl(form.sidebarLogoUrl, apiBase),
     [form.sidebarLogoUrl, apiBase],
   );
+  const appLogoSrc = useMemo(
+    () => resolveUploadUrl(form.appLogoUrl, apiBase) || getDefaultAppLogoUrl(),
+    [form.appLogoUrl, apiBase],
+  );
 
   const onChange = (key) => (e) => {
     const value = e.target.value;
@@ -87,6 +153,15 @@ const GeneralSettings = () => {
       const next = { ...prev, [key]: value };
       if (key === "buttonColor") next.primaryColor = value;
       if (key === "primaryColor") next.buttonColor = value;
+      if (key === "saleTemplate") next.template = value;
+      return next;
+    });
+  };
+
+  const selectTemplate = (key, value) => {
+    setForm((prev) => {
+      const next = { ...prev, [key]: value };
+      if (key === "saleTemplate") next.template = value;
       return next;
     });
   };
@@ -100,8 +175,8 @@ const GeneralSettings = () => {
           primaryColor: form.buttonColor || form.primaryColor,
           buttonColor: form.buttonColor || form.primaryColor,
           // Sidebar stays on fixed theme color — do not persist custom sidebar colors
-          secondaryColor: "#0d2b26",
-          sidebarColor: "#0d2b26",
+          secondaryColor: "#182c25",
+          sidebarColor: "#182c25",
         },
       }),
     );
@@ -115,21 +190,31 @@ const GeneralSettings = () => {
     }
     try {
       if (kind === "invoice") setUploadingInvoice(true);
+      else if (kind === "app") setUploadingApp(true);
       else setUploadingSidebar(true);
       const result =
         kind === "invoice"
           ? await settingService.uploadInvoiceLogo(file)
-          : await settingService.uploadSidebarLogo(file);
+          : kind === "app"
+            ? await settingService.uploadAppLogo(file)
+            : await settingService.uploadSidebarLogo(file);
       const nextSettings = result?.settings ?? result;
       if (nextSettings) {
         dispatch(fetchSettingsSuccess(nextSettings));
       }
-      toast.success(kind === "invoice" ? "Invoice logo uploaded" : "Sidebar logo uploaded");
+      toast.success(
+        kind === "invoice"
+          ? "Invoice logo uploaded"
+          : kind === "app"
+            ? "App logo uploaded"
+            : "Sidebar logo uploaded",
+      );
     } catch (err) {
       toast.error(err?.message || "Upload failed");
     } finally {
       setUploadingInvoice(false);
       setUploadingSidebar(false);
+      setUploadingApp(false);
     }
   };
 
@@ -139,11 +224,32 @@ const GeneralSettings = () => {
         <div className="page-header branding-page-header">
           <div className="page-title">
             <h4>Invoice &amp; Branding</h4>
-            <h6>Company details, PDF templates, and POS catalog layout.</h6>
+            <h6>App name/logo, printer, company details, PDF templates, and POS layout.</h6>
           </div>
         </div>
 
         <div className="branding-tabs">
+          <button
+            type="button"
+            className={`branding-tab${tab === "app" ? " is-active" : ""}`}
+            onClick={() => setTab("app")}
+          >
+            App name &amp; logo
+          </button>
+          <button
+            type="button"
+            className={`branding-tab${tab === "printer" ? " is-active" : ""}`}
+            onClick={() => setTab("printer")}
+          >
+            Printer
+          </button>
+          <button
+            type="button"
+            className={`branding-tab${tab === "pdf" ? " is-active" : ""}`}
+            onClick={() => setTab("pdf")}
+          >
+            PDF templates
+          </button>
           <button
             type="button"
             className={`branding-tab${tab === "invoice" ? " is-active" : ""}`}
@@ -168,25 +274,151 @@ const GeneralSettings = () => {
         </div>
 
         <form onSubmit={onSubmit}>
+          {tab === "app" ? (
+            <div className="card branding-card" style={{ maxWidth: 720 }}>
+              <div className="card-body">
+                <h5 className="mb-2">App identity</h5>
+                <p className="text-muted mb-3">
+                  Shown in the sidebar, header, login screen, and browser tab. Default name is{" "}
+                  <strong>{DEFAULT_APP_NAME}</strong> with <code>main-app-logo</code>.
+                </p>
+                <div className="mb-3">
+                  <label className="form-label">App name</label>
+                  <input
+                    className="form-control"
+                    value={form.appName}
+                    onChange={onChange("appName")}
+                    placeholder={DEFAULT_APP_NAME}
+                    maxLength={80}
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">App logo</label>
+                  <div className="branding-upload-row">
+                    <button
+                      type="button"
+                      className="btn branding-upload-btn"
+                      disabled={uploadingApp}
+                      onClick={() => appLogoRef.current?.click()}
+                    >
+                      <ImageIcon size={16} />
+                      {uploadingApp ? "Uploading..." : "Upload app logo"}
+                    </button>
+                    <input
+                      ref={appLogoRef}
+                      type="file"
+                      accept="image/*"
+                      hidden
+                      onChange={(e) => {
+                        handleLogoUpload("app", e.target.files?.[0]);
+                        e.target.value = "";
+                      }}
+                    />
+                    <img
+                      src={appLogoSrc}
+                      alt={form.appName || DEFAULT_APP_NAME}
+                      className="branding-logo-thumb"
+                    />
+                  </div>
+                  <p className="text-muted small mt-2 mb-0">
+                    {form.appLogoUrl
+                      ? "Custom logo is active for sidebar and header."
+                      : "Using default main-app-logo until you upload a custom image."}
+                  </p>
+                </div>
+                <div
+                  className="branding-theme-swatch mt-3 d-flex align-items-center gap-3"
+                  style={{
+                    background: "#182c25",
+                    color: "#e6efe9",
+                    borderColor: "#306844",
+                  }}
+                >
+                  <img
+                    src={appLogoSrc}
+                    alt=""
+                    style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover", background: "#fff" }}
+                  />
+                  <strong>{form.appName || DEFAULT_APP_NAME}</strong>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {tab === "printer" ? (
+            <div className="card branding-card" style={{ maxWidth: 720 }}>
+              <div className="card-body">
+                <PrinterConnectPanel />
+              </div>
+            </div>
+          ) : null}
+
+          {tab === "pdf" ? (
+            <div className="card branding-card">
+              <div className="card-body">
+                <h5 className="mb-1">PDF templates</h5>
+                <p className="text-muted mb-4">
+                  Choose modern layouts for sale invoices, purchase orders, and receipt-style PDFs.
+                </p>
+
+                <h6 className="pdf-template-group-title">Sale invoices &amp; receipts</h6>
+                <div className="pdf-template-grid mb-4">
+                  {SALE_PDF_TEMPLATES.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      className={`pdf-template-card${
+                        form.saleTemplate === opt.value ? " is-selected" : ""
+                      } is-${opt.tone}`}
+                      onClick={() => selectTemplate("saleTemplate", opt.value)}
+                    >
+                      <div className="pdf-template-preview" aria-hidden="true">
+                        <span className="pdf-template-preview__bar" />
+                        <span className="pdf-template-preview__line" />
+                        <span className="pdf-template-preview__line is-short" />
+                        <span className="pdf-template-preview__table" />
+                      </div>
+                      <div className="pdf-template-copy">
+                        <strong>{opt.label}</strong>
+                        <span>{opt.desc}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                <h6 className="pdf-template-group-title">Purchase orders</h6>
+                <div className="pdf-template-grid">
+                  {PO_PDF_TEMPLATES.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      className={`pdf-template-card${
+                        form.purchaseOrderTemplate === opt.value ? " is-selected" : ""
+                      } is-${opt.tone}`}
+                      onClick={() => selectTemplate("purchaseOrderTemplate", opt.value)}
+                    >
+                      <div className="pdf-template-preview" aria-hidden="true">
+                        <span className="pdf-template-preview__bar" />
+                        <span className="pdf-template-preview__line" />
+                        <span className="pdf-template-preview__line is-short" />
+                        <span className="pdf-template-preview__table" />
+                      </div>
+                      <div className="pdf-template-copy">
+                        <strong>{opt.label}</strong>
+                        <span>{opt.desc}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           {tab === "invoice" ? (
             <div className="row g-4">
               <div className="col-xl-6">
                 <div className="card branding-card">
                   <div className="card-body">
-                    <div className="mb-3">
-                      <label className="form-label">Invoice template (PDF)</label>
-                      <select
-                        className="form-select"
-                        value={form.template}
-                        onChange={onChange("template")}
-                      >
-                        {TEMPLATE_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
                     <div className="mb-3">
                       <label className="form-label">Company name</label>
                       <input
@@ -401,7 +633,7 @@ const GeneralSettings = () => {
                       <input
                         type="color"
                         className="form-control form-control-color"
-                        value={form.buttonColor || "#c4f45d"}
+                        value={form.buttonColor || "#306844"}
                         onChange={onChange("buttonColor")}
                       />
                       <input
@@ -444,9 +676,9 @@ const GeneralSettings = () => {
                 <div
                   className="branding-theme-swatch mt-3"
                   style={{
-                    background: "#0d2b26",
-                    color: form.buttonColor,
-                    borderColor: form.buttonColor,
+                    background: "#182c25",
+                    color: "#e6efe9",
+                    borderColor: form.buttonColor || "#306844",
                   }}
                 >
                   <span>Button preview</span>
@@ -454,8 +686,8 @@ const GeneralSettings = () => {
                     type="button"
                     className="btn btn-sm"
                     style={{
-                      background: form.buttonColor,
-                      color: "#0d2b26",
+                      background: form.buttonColor || "#306844",
+                      color: "#ffffff",
                       border: "none",
                       fontWeight: 700,
                     }}
@@ -467,11 +699,13 @@ const GeneralSettings = () => {
             </div>
           ) : null}
 
-          <div className="text-end mt-3">
-            <button type="submit" className="btn btn-primary branding-save-btn" disabled={loading}>
-              {loading ? "Saving..." : "Save settings"}
-            </button>
-          </div>
+          {tab !== "printer" ? (
+            <div className="text-end mt-3">
+              <button type="submit" className="btn btn-primary branding-save-btn" disabled={loading}>
+                {loading ? "Saving..." : "Save settings"}
+              </button>
+            </div>
+          ) : null}
         </form>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import Cookies from "js-cookie";
 import { getApiBase } from "../../config/runtimeConfig";
 
 const API_URL = `${getApiBase()}/users`;
@@ -17,6 +18,17 @@ export const login = async ({ email, password }) => {
     body: JSON.stringify({ email, password }),
   });
   return parseResponse(response, "Login failed");
+};
+
+export const fetchProfile = async () => {
+  const token = Cookies.get("token");
+  const response = await fetch(`${API_URL}/profile`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+  return parseResponse(response, "Failed to load profile");
 };
 
 export const logout = async () => {

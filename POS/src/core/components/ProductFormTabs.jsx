@@ -106,6 +106,9 @@ const ProductFormTabs = ({
                 value={form.category}
                 onChange={(opt) => onChange("category", opt)}
                 placeholder="Select category"
+                menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+                menuPosition="fixed"
+                styles={{ menuPortal: (base) => ({ ...base, zIndex: 10650 }) }}
               />
             </div>
             <div className="col-md-4 mb-3">
@@ -117,6 +120,9 @@ const ProductFormTabs = ({
                 value={form.expiry_date ? dayjs(form.expiry_date) : null}
                 onChange={(date) => onChange("expiry_date", date)}
                 style={{ width: "100%" }}
+                getPopupContainer={() => document.body}
+                popupClassName="modern-form-datepicker-popup"
+                popupStyle={{ zIndex: 10650 }}
               />
             </div>
             <div className="col-md-4 mb-3">
@@ -225,6 +231,9 @@ const ProductFormTabs = ({
                 options={statusOptions}
                 value={statusOptions.find((o) => o.value === form.status)}
                 onChange={(opt) => onChange("status", opt?.value || "active")}
+                menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+                menuPosition="fixed"
+                styles={{ menuPortal: (base) => ({ ...base, zIndex: 10650 }) }}
               />
             </div>
             <div className="col-md-3 mb-3 d-flex align-items-end">
